@@ -21,7 +21,7 @@
 ### 1. 每次推送构建
 
 - 工作流文件：`.github/workflows/ci-build.yml`
-- 触发时机：推送到 `main`、Pull Request、手动触发。
+- 触发时机：任意 push、Pull Request、手动触发。
 - 产物位置：GitHub Actions 运行记录中的 artifact。
 - 产物内容：`paste_tool-windows-x64.zip`，包含 `paste_tool.exe` 和 `README.md`。
 
