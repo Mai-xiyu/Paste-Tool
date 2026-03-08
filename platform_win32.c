@@ -30,7 +30,7 @@ typedef struct Win32AppState {
     HINSTANCE instance;
     HWND messageWindow;
     LONG isPasting;
-    NOTIFYICONDATA trayIcon;
+    NOTIFYICONDATAW trayIcon;
     AppConfig config;
 } Win32AppState;
 
@@ -217,11 +217,11 @@ static void AppInitializeTrayIcon(HWND windowHandle) {
     g_app.trayIcon.hIcon = LoadIcon(NULL, IDI_APPLICATION);
 
     AppUpdateTrayTooltip();
-    Shell_NotifyIcon(NIM_ADD, &g_app.trayIcon);
+    Shell_NotifyIconW(NIM_ADD, &g_app.trayIcon);
 }
 
 static void AppRemoveTrayIcon(void) {
-    Shell_NotifyIcon(NIM_DELETE, &g_app.trayIcon);
+    Shell_NotifyIconW(NIM_DELETE, &g_app.trayIcon);
 }
 
 static void AppShowTrayMenu(HWND windowHandle) {
