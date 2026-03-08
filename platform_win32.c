@@ -13,9 +13,11 @@
 #define APP_TRAY_ICON_ID 1
 #define APP_HOTKEY_ID 100
 
+#define IDM_ABOUT 1999
 #define IDM_CHECK_UPDATE 2000
-#define IDM_HELP 2001
-#define IDM_EXIT 2002
+#define IDM_OPEN_REPOSITORY 2001
+#define IDM_HELP 2002
+#define IDM_EXIT 2003
 
 #define APP_WINDOW_CLASS_NAME L"AutoPasteToolClass"
 #define APP_WINDOW_TITLE L"PasteTool"
@@ -37,8 +39,10 @@ static Win32AppState g_app;
 static LRESULT CALLBACK AppWindowProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam);
 
 static void AppShowError(const wchar_t* message);
+static void AppShowAbout(void);
 static void AppShowHelp(void);
 static void AppCheckForUpdates(void);
+static void AppOpenRepository(void);
 static void AppLoadConfigFromRegistry(void);
 static BOOL AppRegisterWindowClass(HINSTANCE instance);
 static BOOL AppRegisterHotkey(HWND windowHandle);
@@ -48,6 +52,7 @@ static void AppInitializeTrayIcon(HWND windowHandle);
 static void AppUpdateTrayTooltip(void);
 static void AppRemoveTrayIcon(void);
 static void AppShowTrayMenu(HWND windowHandle);
+static void AppHandleTrayCommand(HWND windowHandle, UINT commandId);
 static wchar_t* AppReadClipboardText(void);
 static void AppOpenUrl(const wchar_t* url);
 static void AppSleepMs(void* userData, uint32_t milliseconds);
@@ -60,6 +65,25 @@ static void AppFinishPasteOperation(HWND windowHandle);
 
 static void AppShowError(const wchar_t* message) {
     MessageBoxW(NULL, message, L"错误", MB_ICONERROR);
+}
+
+static void AppShowAbout(void) {
+    wchar_t message[512];
+
+    StringCchPrintfW(
+        message,
+        ARRAYSIZE(message),
+        L"%ls\n版本：%ls\n\n"
+        L"仓库主页：\n%ls\n\n"
+        L"更新检查：\n%ls\n\n"
+        L"新版本建议从 GitHub Release 页面下载安装。",
+        APP_NAME,
+        APP_VERSION,
+        APP_REPOSITORY_URL,
+        APP_LATEST_RELEASE_URL
+    );
+
+    MessageBoxW(NULL, message, L"关于", MB_ICONINFORMATION);
 }
 
 static void AppShowHelp(void) {
@@ -98,6 +122,10 @@ static void AppOpenUrl(const wchar_t* url) {
 
 static void AppCheckForUpdates(void) {
     AppOpenUrl(APP_LATEST_RELEASE_URL);
+}
+
+static void AppOpenRepository(void) {
+    AppOpenUrl(APP_REPOSITORY_URL);
 }
 
 static void AppLoadConfigFromRegistry(void) {
@@ -209,8 +237,10 @@ static void AppShowTrayMenu(HWND windowHandle) {
         return;
     }
 
+    AppendMenuW(popupMenu, MF_STRING, IDM_ABOUT, L"关于 (About)");
     AppendMenuW(popupMenu, MF_STRING, IDM_HELP, L"使用说明 (Help)");
     AppendMenuW(popupMenu, MF_STRING, IDM_CHECK_UPDATE, L"检查更新 (Latest Release)");
+    AppendMenuW(popupMenu, MF_STRING, IDM_OPEN_REPOSITORY, L"仓库主页 (Repository)");
     AppendMenuW(popupMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(popupMenu, MF_STRING, IDM_EXIT, L"退出 (Exit)");
 
@@ -224,15 +254,36 @@ static void AppShowTrayMenu(HWND windowHandle) {
         NULL
     );
 
-    if (commandId == IDM_HELP) {
-        AppShowHelp();
-    } else if (commandId == IDM_CHECK_UPDATE) {
-        AppCheckForUpdates();
-    } else if (commandId == IDM_EXIT) {
-        DestroyWindow(windowHandle);
-    }
+    AppHandleTrayCommand(windowHandle, commandId);
 
     DestroyMenu(popupMenu);
+}
+
+static void AppHandleTrayCommand(HWND windowHandle, UINT commandId) {
+    switch (commandId) {
+        case IDM_ABOUT:
+            AppShowAbout();
+            break;
+
+        case IDM_HELP:
+            AppShowHelp();
+            break;
+
+        case IDM_CHECK_UPDATE:
+            AppCheckForUpdates();
+            break;
+
+        case IDM_OPEN_REPOSITORY:
+            AppOpenRepository();
+            break;
+
+        case IDM_EXIT:
+            DestroyWindow(windowHandle);
+            break;
+
+        default:
+            break;
+    }
 }
 
 static wchar_t* AppReadClipboardText(void) {

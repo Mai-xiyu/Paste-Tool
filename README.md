@@ -8,6 +8,7 @@
 - Release 列表：`https://github.com/Mai-xiyu/Paste-Tool/releases`
 - 最新版本检查：`https://github.com/Mai-xiyu/Paste-Tool/releases/latest`
 - 程序托盘菜单里的“检查更新”会直接打开 latest release 页面。
+- 程序托盘菜单还提供“关于”和“仓库主页”入口，方便直接查看版本和项目地址。
 - 后续发布新版本时，建议把可执行文件或安装包作为 GitHub release 附件上传。
 
 ## 安装新版本
