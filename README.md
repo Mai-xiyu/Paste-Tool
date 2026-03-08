@@ -24,7 +24,7 @@
 - 工作流文件：`.github/workflows/ci-build.yml`
 - 触发时机：任意 push、Pull Request、手动触发。
 - 产物位置：GitHub Actions 运行记录中的 artifact。
-- 产物内容：`paste_tool-v<version>-windows-x64.zip`，包含 `paste_tool.exe`、`README.md` 和 `VERSION.txt`。
+- 产物内容：`paste_tool-v<version>-windows-x64.exe`。
 
 ### 2. 推送版本 Tag 发 Release
 
@@ -34,7 +34,7 @@
 - 产物位置：
 	- Actions 运行记录中的 artifact。
 	- 对应 GitHub Release 下的附件。
-- Release 资产命名：`paste_tool-<tag>-windows-x64.zip`
+- Release 资产命名：`paste_tool-<tag>-windows-x64.exe`
 
 ### 3. 推荐发布流程
 
@@ -44,11 +44,9 @@
 4. 推送 tag：`git push origin v0.1.0`。
 5. 等待 GitHub Actions 自动构建并把产物挂到 Release。
 
-## 打包内容
+## 构建产物
 
-- `paste_tool.exe`: 主程序。
-- `README.md`: 使用说明。
-- `VERSION.txt`: 当前构建版本、latest release 地址和仓库地址。
+- GitHub Actions 和 GitHub Release 都直接提供 `.exe` 文件下载，不再额外打包为 zip。
 
 ## 文件结构
 

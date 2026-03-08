@@ -73,7 +73,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: paste_tool-${{ steps.release_tag.outputs.tag }}-windows-x64
-          path: dist/paste_tool-${{ steps.release_tag.outputs.tag }}-windows-x64.zip
+          path: dist/paste_tool-${{ steps.release_tag.outputs.tag }}-windows-x64.exe
           if-no-files-found: error
 
       - name: Publish GitHub release asset
@@ -82,4 +82,4 @@ jobs:
           tag_name: ${{ steps.release_tag.outputs.tag }}
           generate_release_notes: true
           fail_on_unmatched_files: true
-          files: dist/paste_tool-${{ steps.release_tag.outputs.tag }}-windows-x64.zip
+          files: dist/paste_tool-${{ steps.release_tag.outputs.tag }}-windows-x64.exe
