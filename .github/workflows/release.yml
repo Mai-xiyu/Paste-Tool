@@ -1,0 +1,51 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSYS2 and MinGW
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+
+      - name: Build executable
+        shell: msys2 {0}
+        run: |
+          mkdir -p dist
+          gcc paste_tool.c platform_win32.c app_core.c -o dist/paste_tool.exe -mwindows -lshell32
+
+      - name: Package release archive
+        shell: pwsh
+        run: |
+          $archiveName = "paste_tool-${{ github.ref_name }}-windows-x64.zip"
+          Compress-Archive -Path dist/paste_tool.exe, README.md -DestinationPath (Join-Path dist $archiveName) -Force
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: paste_tool-${{ github.ref_name }}-windows-x64
+          path: dist/paste_tool-${{ github.ref_name }}-windows-x64.zip
+          if-no-files-found: error
+
+      - name: Publish GitHub release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/paste_tool-${{ github.ref_name }}-windows-x64.zip

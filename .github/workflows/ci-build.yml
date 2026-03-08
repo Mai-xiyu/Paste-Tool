@@ -1,0 +1,42 @@
+name: CI Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSYS2 and MinGW
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+
+      - name: Build executable
+        shell: msys2 {0}
+        run: |
+          mkdir -p dist
+          gcc paste_tool.c platform_win32.c app_core.c -o dist/paste_tool.exe -mwindows -lshell32
+
+      - name: Package build artifact
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/paste_tool.exe, README.md -DestinationPath dist/paste_tool-windows-x64.zip -Force
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: paste_tool-windows-x64
+          path: dist/paste_tool-windows-x64.zip
+          if-no-files-found: error
