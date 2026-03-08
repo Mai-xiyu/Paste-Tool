@@ -23,12 +23,13 @@
 - 工作流文件：`.github/workflows/ci-build.yml`
 - 触发时机：任意 push、Pull Request、手动触发。
 - 产物位置：GitHub Actions 运行记录中的 artifact。
-- 产物内容：`paste_tool-windows-x64.zip`，包含 `paste_tool.exe` 和 `README.md`。
+- 产物内容：`paste_tool-v<version>-windows-x64.zip`，包含 `paste_tool.exe`、`README.md` 和 `VERSION.txt`。
 
 ### 2. 推送版本 Tag 发 Release
 
 - 工作流文件：`.github/workflows/release.yml`
 - 触发时机：推送形如 `v1.0.0` 的 tag，或手动触发。
+- 校验规则：release tag 必须和 `app_metadata.h` 里的 `APP_VERSION` 一致，例如 `APP_VERSION = 0.1.0` 时只能发布 `v0.1.0`。
 - 产物位置：
 	- Actions 运行记录中的 artifact。
 	- 对应 GitHub Release 下的附件。
@@ -41,6 +42,12 @@
 3. 打 tag，例如：`git tag v0.1.0`。
 4. 推送 tag：`git push origin v0.1.0`。
 5. 等待 GitHub Actions 自动构建并把产物挂到 Release。
+
+## 打包内容
+
+- `paste_tool.exe`: 主程序。
+- `README.md`: 使用说明。
+- `VERSION.txt`: 当前构建版本、latest release 地址和仓库地址。
 
 ## 文件结构
 

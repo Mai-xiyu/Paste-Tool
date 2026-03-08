@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Release tag, for example v0.1.0
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -16,6 +21,34 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Resolve app version
+        id: app_version
+        shell: pwsh
+        run: |
+          $version = ./scripts/read-app-version.ps1
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Resolve release tag
+        id: release_tag
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $tag = "${{ github.event.inputs.tag_name }}"
+          } else {
+            $tag = "${{ github.ref_name }}"
+          }
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Validate version matches tag
+        shell: pwsh
+        run: |
+          $expectedTag = "v${{ steps.app_version.outputs.version }}"
+          $actualTag = "${{ steps.release_tag.outputs.tag }}"
+          if ($actualTag -ne $expectedTag) {
+            Write-Error "Release tag $actualTag does not match APP_VERSION $expectedTag"
+            exit 1
+          }
 
       - name: Set up MSYS2 and MinGW
         uses: msys2/setup-msys2@v2
@@ -34,18 +67,19 @@ jobs:
       - name: Package release archive
         shell: pwsh
         run: |
-          $archiveName = "paste_tool-${{ github.ref_name }}-windows-x64.zip"
-          Compress-Archive -Path dist/paste_tool.exe, README.md -DestinationPath (Join-Path dist $archiveName) -Force
+          ./scripts/package-artifact.ps1 -VersionLabel "${{ steps.release_tag.outputs.tag }}"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: paste_tool-${{ github.ref_name }}-windows-x64
-          path: dist/paste_tool-${{ github.ref_name }}-windows-x64.zip
+          name: paste_tool-${{ steps.release_tag.outputs.tag }}-windows-x64
+          path: dist/paste_tool-${{ steps.release_tag.outputs.tag }}-windows-x64.zip
           if-no-files-found: error
 
       - name: Publish GitHub release asset
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.release_tag.outputs.tag }}
           generate_release_notes: true
-          files: dist/paste_tool-${{ github.ref_name }}-windows-x64.zip
+          fail_on_unmatched_files: true
+          files: dist/paste_tool-${{ steps.release_tag.outputs.tag }}-windows-x64.zip
