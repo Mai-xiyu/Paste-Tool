@@ -62,18 +62,41 @@ jobs:
         shell: msys2 {0}
         run: |
           mkdir -p dist
-          gcc paste_tool.c platform_win32.c app_core.c -o dist/paste_tool.exe -mwindows -lshell32
+          gcc paste_tool.c platform_win32.c app_core.c -o dist/paste_tool.exe -mwindows -lshell32 -lurlmon
 
-      - name: Package release archive
+      - name: Prepare portable artifact
         shell: pwsh
         run: |
           ./scripts/package-artifact.ps1 -VersionLabel "${{ steps.release_tag.outputs.tag }}"
 
-      - name: Upload workflow artifact
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          ./scripts/build-installer.ps1 -VersionLabel "${{ steps.release_tag.outputs.tag }}"
+
+      - name: Create stable latest asset names
+        shell: pwsh
+        run: |
+          Copy-Item -Path dist/paste_tool-${{ steps.release_tag.outputs.tag }}-windows-x64.exe -Destination dist/paste_tool-latest-windows-x64.exe -Force
+          Copy-Item -Path dist/paste_tool-installer-${{ steps.release_tag.outputs.tag }}-windows-x64.exe -Destination dist/paste_tool-installer-latest.exe -Force
+
+      - name: Upload portable artifact
         uses: actions/upload-artifact@v4
         with:
           name: paste_tool-${{ steps.release_tag.outputs.tag }}-windows-x64
           path: dist/paste_tool-${{ steps.release_tag.outputs.tag }}-windows-x64.exe
+          if-no-files-found: error
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: paste_tool-installer-${{ steps.release_tag.outputs.tag }}-windows-x64
+          path: dist/paste_tool-installer-${{ steps.release_tag.outputs.tag }}-windows-x64.exe
           if-no-files-found: error
 
       - name: Publish GitHub release asset
@@ -82,4 +105,8 @@ jobs:
           tag_name: ${{ steps.release_tag.outputs.tag }}
           generate_release_notes: true
           fail_on_unmatched_files: true
-          files: dist/paste_tool-${{ steps.release_tag.outputs.tag }}-windows-x64.exe
+          files: |
+            dist/paste_tool-${{ steps.release_tag.outputs.tag }}-windows-x64.exe
+            dist/paste_tool-latest-windows-x64.exe
+            dist/paste_tool-installer-${{ steps.release_tag.outputs.tag }}-windows-x64.exe
+            dist/paste_tool-installer-latest.exe

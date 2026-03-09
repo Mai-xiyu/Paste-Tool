@@ -6,6 +6,7 @@
 #include <shellapi.h>
 #include <stdlib.h>
 #include <strsafe.h>
+#include <urlmon.h>
 
 #define WM_APP_TRAYICON (WM_USER + 1)
 #define WM_APP_PASTE_DONE (WM_USER + 2)
@@ -16,8 +17,10 @@
 #define IDM_ABOUT 1999
 #define IDM_CHECK_UPDATE 2000
 #define IDM_OPEN_REPOSITORY 2001
-#define IDM_HELP 2002
-#define IDM_EXIT 2003
+#define IDM_DOWNLOAD_PORTABLE 2002
+#define IDM_DOWNLOAD_INSTALLER 2003
+#define IDM_HELP 2004
+#define IDM_EXIT 2005
 
 #define APP_WINDOW_CLASS_NAME L"AutoPasteToolClass"
 #define APP_WINDOW_TITLE L"PasteTool"
@@ -43,6 +46,8 @@ static void AppShowAbout(void);
 static void AppShowHelp(void);
 static void AppCheckForUpdates(void);
 static void AppOpenRepository(void);
+static void AppDownloadLatestPortable(void);
+static void AppDownloadLatestInstaller(void);
 static void AppLoadConfigFromRegistry(void);
 static BOOL AppRegisterWindowClass(HINSTANCE instance);
 static BOOL AppRegisterHotkey(HWND windowHandle);
@@ -55,6 +60,9 @@ static void AppShowTrayMenu(HWND windowHandle);
 static void AppHandleTrayCommand(HWND windowHandle, UINT commandId);
 static wchar_t* AppReadClipboardText(void);
 static void AppOpenUrl(const wchar_t* url);
+static BOOL AppGetDownloadsDirectory(wchar_t* downloadsDirectory, size_t capacity);
+static void AppOpenDirectory(const wchar_t* directoryPath);
+static void AppDownloadReleaseAsset(const wchar_t* downloadUrl, const wchar_t* targetFileName, BOOL launchAfterDownload);
 static void AppSleepMs(void* userData, uint32_t milliseconds);
 static void AppNotifyPasteStart(void* userData);
 static void AppNotifyPasteError(void* userData);
@@ -76,11 +84,15 @@ static void AppShowAbout(void) {
         L"%ls\n版本：%ls\n\n"
         L"仓库主页：\n%ls\n\n"
         L"更新检查：\n%ls\n\n"
+        L"便携版直链：\n%ls\n\n"
+        L"安装包直链：\n%ls\n\n"
         L"新版本建议从 GitHub Release 页面下载安装。",
         APP_NAME,
         APP_VERSION,
         APP_REPOSITORY_URL,
-        APP_LATEST_RELEASE_URL
+        APP_LATEST_RELEASE_URL,
+        APP_LATEST_PORTABLE_DOWNLOAD_URL,
+        APP_LATEST_INSTALLER_DOWNLOAD_URL
     );
 
     MessageBoxW(NULL, message, L"关于", MB_ICONINFORMATION);
@@ -101,6 +113,7 @@ static void AppShowHelp(void) {
         L"- 输入期间会暂时禁用热键，避免重复触发。\n"
         L"- 程序在系统托盘运行，右键图标可查看帮助或退出。\n"
         L"- 检查更新会打开 GitHub 最新 release 页面。\n"
+        L"- 可直接下载 latest 便携版 exe 或安装包 exe。\n"
         L"- 新版本建议通过 GitHub release 附件下载安装。\n"
         L"- 核心粘贴逻辑已拆到 app_core.c，便于后续做跨平台版本。",
         APP_NAME,
@@ -126,6 +139,104 @@ static void AppCheckForUpdates(void) {
 
 static void AppOpenRepository(void) {
     AppOpenUrl(APP_REPOSITORY_URL);
+}
+
+static BOOL AppGetDownloadsDirectory(wchar_t* downloadsDirectory, size_t capacity) {
+    DWORD length = GetEnvironmentVariableW(L"USERPROFILE", downloadsDirectory, (DWORD)capacity);
+
+    if (length == 0 || length >= capacity) {
+        return FALSE;
+    }
+
+    if (FAILED(StringCchCatW(downloadsDirectory, capacity, L"\\Downloads"))) {
+        return FALSE;
+    }
+
+    CreateDirectoryW(downloadsDirectory, NULL);
+    return TRUE;
+}
+
+static void AppOpenDirectory(const wchar_t* directoryPath) {
+    HINSTANCE result = ShellExecuteW(NULL, L"open", directoryPath, NULL, NULL, SW_SHOWNORMAL);
+
+    if ((INT_PTR)result <= 32) {
+        AppShowError(L"无法打开下载目录，请手动前往 Downloads 文件夹查看。");
+    }
+}
+
+static void AppDownloadReleaseAsset(const wchar_t* downloadUrl, const wchar_t* targetFileName, BOOL launchAfterDownload) {
+    wchar_t downloadsDirectory[MAX_PATH];
+    wchar_t outputPath[MAX_PATH];
+    wchar_t message[1024];
+    HRESULT result;
+    int answer;
+
+    if (!AppGetDownloadsDirectory(downloadsDirectory, ARRAYSIZE(downloadsDirectory))) {
+        AppShowError(L"无法定位 Downloads 目录，下载失败。");
+        return;
+    }
+
+    if (FAILED(StringCchPrintfW(outputPath, ARRAYSIZE(outputPath), L"%ls\\%ls", downloadsDirectory, targetFileName))) {
+        AppShowError(L"下载路径过长，无法保存文件。");
+        return;
+    }
+
+    result = URLDownloadToFileW(NULL, downloadUrl, outputPath, 0, NULL);
+    if (FAILED(result)) {
+        AppShowError(L"自动下载失败，请检查网络后重试，或手动打开 latest release 页面下载。");
+        return;
+    }
+
+    if (launchAfterDownload) {
+        if (FAILED(StringCchPrintfW(
+            message,
+            ARRAYSIZE(message),
+            L"安装包已下载到：\n%ls\n\n是否现在启动安装包？",
+            outputPath
+        ))) {
+            AppShowError(L"安装包已下载完成，但提示信息生成失败。");
+            return;
+        }
+
+        answer = MessageBoxW(NULL, message, L"下载完成", MB_ICONINFORMATION | MB_YESNO);
+        if (answer == IDYES) {
+            AppOpenUrl(outputPath);
+        } else {
+            AppOpenDirectory(downloadsDirectory);
+        }
+        return;
+    }
+
+    if (FAILED(StringCchPrintfW(
+        message,
+        ARRAYSIZE(message),
+        L"最新便携版已下载到：\n%ls\n\n是否打开下载目录？",
+        outputPath
+    ))) {
+        AppShowError(L"便携版已下载完成，但提示信息生成失败。");
+        return;
+    }
+
+    answer = MessageBoxW(NULL, message, L"下载完成", MB_ICONINFORMATION | MB_YESNO);
+    if (answer == IDYES) {
+        AppOpenDirectory(downloadsDirectory);
+    }
+}
+
+static void AppDownloadLatestPortable(void) {
+    AppDownloadReleaseAsset(
+        APP_LATEST_PORTABLE_DOWNLOAD_URL,
+        L"paste_tool-latest-windows-x64.exe",
+        FALSE
+    );
+}
+
+static void AppDownloadLatestInstaller(void) {
+    AppDownloadReleaseAsset(
+        APP_LATEST_INSTALLER_DOWNLOAD_URL,
+        L"paste_tool-installer-latest.exe",
+        TRUE
+    );
 }
 
 static void AppLoadConfigFromRegistry(void) {
@@ -240,6 +351,8 @@ static void AppShowTrayMenu(HWND windowHandle) {
     AppendMenuW(popupMenu, MF_STRING, IDM_ABOUT, L"关于 (About)");
     AppendMenuW(popupMenu, MF_STRING, IDM_HELP, L"使用说明 (Help)");
     AppendMenuW(popupMenu, MF_STRING, IDM_CHECK_UPDATE, L"检查更新 (Latest Release)");
+    AppendMenuW(popupMenu, MF_STRING, IDM_DOWNLOAD_PORTABLE, L"下载最新便携版 (Portable EXE)");
+    AppendMenuW(popupMenu, MF_STRING, IDM_DOWNLOAD_INSTALLER, L"下载最新安装包 (Installer EXE)");
     AppendMenuW(popupMenu, MF_STRING, IDM_OPEN_REPOSITORY, L"仓库主页 (Repository)");
     AppendMenuW(popupMenu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(popupMenu, MF_STRING, IDM_EXIT, L"退出 (Exit)");
@@ -271,6 +384,14 @@ static void AppHandleTrayCommand(HWND windowHandle, UINT commandId) {
 
         case IDM_CHECK_UPDATE:
             AppCheckForUpdates();
+            break;
+
+        case IDM_DOWNLOAD_PORTABLE:
+            AppDownloadLatestPortable();
+            break;
+
+        case IDM_DOWNLOAD_INSTALLER:
+            AppDownloadLatestInstaller();
             break;
 
         case IDM_OPEN_REPOSITORY:

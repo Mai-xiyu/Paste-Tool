@@ -1,5 +1,5 @@
 /* 编译命令 (GCC/MinGW):
-   gcc paste_tool.c platform_win32.c app_core.c -o paste_tool.exe -mwindows -lshell32
+    gcc paste_tool.c platform_win32.c app_core.c -o paste_tool.exe -mwindows -lshell32 -lurlmon
 
    注意：必须添加 -lshell32 以支持托盘图标功能
 */
