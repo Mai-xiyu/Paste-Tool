@@ -1,88 +1,73 @@
-# paste_tool
+# Paste Tool
 
-一个基于 Win32 的托盘粘贴工具。当前版本已经把核心粘贴流程和 Windows 平台接入层拆开，便于后续做跨平台版本。
+一个轻量级的 Windows 托盘粘贴工具，通过模拟键盘输入逐字符粘贴文本，绕过不支持 Ctrl+V 的平台限制（如 PTA、头歌等在线答题平台的代码编辑器）。
 
 ## 提要
 
 这工具本来是给我的前女友方便做 PTA、头歌 等平台做题搞的，最近想了想，把它整理和优化之后就开源了。
 
-## 更新渠道
+## 功能特性
 
-- 仓库地址：`https://github.com/Mai-xiyu/Paste-Tool`
-- Release 列表：`https://github.com/Mai-xiyu/Paste-Tool/releases`
-- 最新版本检查：`https://github.com/Mai-xiyu/Paste-Tool/releases/latest`
-- 最新便携版直链：`https://github.com/Mai-xiyu/Paste-Tool/releases/latest/download/paste_tool-latest-windows-x64.exe`
-- 最新安装包直链：`https://github.com/Mai-xiyu/Paste-Tool/releases/latest/download/paste_tool-installer-latest.exe`
-- 程序托盘菜单里的“检查更新”会直接打开 latest release 页面。
-- 程序托盘菜单还提供“关于”和“仓库主页”入口，方便直接查看版本和项目地址。
-- 程序托盘菜单还支持自动下载 latest 便携版或 latest 安装包到 Downloads 目录。
+- **逐字符模拟输入**：兼容终端（PuTTY、SSH、Windows Terminal）和浏览器在线编辑器
+- **系统托盘运行**：不占桌面空间，右键菜单操作
+- **自定义热键**：默认 Ctrl+Alt+V，可在托盘菜单「更改热键」中自由配置（Ctrl/Alt/Shift/Win + A-Z/0-9/F1-F12）
+- **检查更新**：托盘菜单一键检查 GitHub 最新版本，自动比对版本号提示更新
+- **一键下载**：支持直接下载最新便携版或安装包到 Downloads 目录
 
-## 安装新版本
+## 下载安装
 
-1. 打开 latest release 页面。
-2. 下载最新 release 附件中的可执行文件或安装包，或者直接使用程序托盘菜单自动下载。
-3. 关闭旧版本程序后，用新文件覆盖或运行安装包完成更新。
+### 便携版（推荐）
 
-## GitHub Actions
+直接下载 exe，双击运行即可：
 
-### 1. 每次推送构建
+- [最新便携版下载](https://github.com/Mai-xiyu/Paste-Tool/releases/latest/download/paste_tool-latest-windows-x64.exe)
 
-- 工作流文件：`.github/workflows/ci-build.yml`
-- 触发时机：任意 push、Pull Request、手动触发。
-- 产物位置：GitHub Actions 运行记录中的 artifact。
-- 产物内容：
-	- `paste_tool-v<version>-windows-x64.exe`
-	- `paste_tool-installer-v<version>-windows-x64.exe`
+### 安装包
 
-### 2. 推送版本 Tag 发 Release
+标准安装，支持开始菜单和桌面快捷方式：
 
-- 工作流文件：`.github/workflows/release.yml`
-- 触发时机：推送形如 `v1.0.0` 的 tag，或手动触发。
-- 校验规则：release tag 必须和 `app_metadata.h` 里的 `APP_VERSION` 一致，例如 `APP_VERSION = 0.1.0` 时只能发布 `v0.1.0`。
-- 产物位置：
-	- Actions 运行记录中的 artifact。
-	- 对应 GitHub Release 下的附件。
-- Release 资产命名：
-	- `paste_tool-<tag>-windows-x64.exe`
-	- `paste_tool-latest-windows-x64.exe`
-	- `paste_tool-installer-<tag>-windows-x64.exe`
-	- `paste_tool-installer-latest.exe`
+- [最新安装包下载](https://github.com/Mai-xiyu/Paste-Tool/releases/latest/download/paste_tool-installer-latest.exe)
 
-### 3. 推荐发布流程
+### 历史版本
 
-1. 更新 `app_metadata.h` 里的版本号。
-2. 提交并推送到 `main`，确认 CI 构建正常。
-3. 打 tag，例如：`git tag v0.1.0`。
-4. 推送 tag：`git push origin v0.1.0`。
-5. 等待 GitHub Actions 自动构建并把产物挂到 Release。
+- [所有 Release](https://github.com/Mai-xiyu/Paste-Tool/releases)
 
-## 构建产物
+## 使用方法
 
-- GitHub Actions 和 GitHub Release 都直接提供 `.exe` 文件下载，不再额外打包为 zip。
-- 便携版 exe 适合直接下载覆盖使用。
-- 安装包 exe 适合标准安装和后续升级。
+1. **复制**：先复制你要粘贴的代码或文本（Ctrl+C）
+2. **触发**：按下快捷键（默认 Ctrl+Alt+V）
+3. **准备**：听到提示音后，在 3 秒内切换到目标输入框
+4. **粘贴**：程序自动逐字符模拟键盘输入，完成后热键自动恢复
 
-## 文件结构
+### 托盘菜单
 
-- `paste_tool.c`: Windows 程序入口。
-- `platform_win32.c`: 托盘、热键、剪贴板、消息循环等 Win32 平台实现。
-- `platform_win32.h`: Windows 平台入口声明。
-- `app_core.c`: 平台无关的默认配置和文本粘贴流程。
-- `app_core.h`: 核心层公开类型和接口。
-- `installer/PasteTool.iss`: Inno Setup 安装包脚本。
-- `scripts/build-installer.ps1`: 安装包构建脚本。
-- `scripts/package-artifact.ps1`: 便携版可执行文件整理脚本。
+右键系统托盘图标可使用以下功能：
 
-## 构建
+| 菜单项 | 说明 |
+|--------|------|
+| 关于 | 查看版本信息和项目链接 |
+| 使用说明 | 查看快捷键和使用帮助 |
+| 更改热键 | 自定义快捷键组合 |
+| 检查更新 | 查询 GitHub 最新版本 |
+| 下载最新便携版 | 自动下载到 Downloads 目录 |
+| 下载最新安装包 | 自动下载并可选启动安装 |
+| 仓库主页 | 打开 GitHub 项目页面 |
+| 退出 | 关闭程序 |
 
-使用 GCC/MinGW：
+## 更新方式
+
+- **程序内检查**：托盘菜单 →「检查更新」，有新版本会提示并可跳转下载
+- **程序内下载**：托盘菜单 →「下载最新便携版」或「下载最新安装包」，直接下载到 Downloads 目录
+- **手动更新**：前往 [Release 页面](https://github.com/Mai-xiyu/Paste-Tool/releases/latest) 下载最新版本，关闭旧程序后覆盖即可
+
+## 从源码构建
+
+需要 GCC/MinGW 环境：
 
 ```bash
-gcc paste_tool.c platform_win32.c app_core.c -o paste_tool.exe -mwindows -lshell32 -lurlmon
+gcc paste_tool.c platform_win32.c app_core.c -o paste_tool.exe -mwindows -lshell32 -lurlmon -lwinhttp
 ```
 
-## 后续跨平台建议
+## 许可
 
-1. 保留 `app_core.*` 作为公共核心层。
-2. 新增 `platform_linux.*` 或 `platform_macos.*` 实现热键、托盘和剪贴板。
-3. 为不同平台提供各自的入口文件，复用相同的核心配置与粘贴策略。
+开源项目，仓库地址：https://github.com/Mai-xiyu/Paste-Tool
