@@ -51,6 +51,16 @@ typedef struct Win32AppState {
 
 static Win32AppState g_app;
 
+static volatile BOOL g_hotkeyDialogDone;
+
+typedef struct HotkeyDialogResult {
+    BOOL confirmed;
+    uint32_t modifiers;
+    uint32_t virtualKey;
+} HotkeyDialogResult;
+
+static HotkeyDialogResult g_hotkeyDialogResult;
+
 static LRESULT CALLBACK AppWindowProc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM lParam);
 
 static void AppShowError(const wchar_t* message);
@@ -632,16 +642,6 @@ static void AppHandleTrayCommand(HWND windowHandle, UINT commandId) {
             break;
     }
 }
-
-static volatile BOOL g_hotkeyDialogDone;
-
-typedef struct HotkeyDialogResult {
-    BOOL confirmed;
-    uint32_t modifiers;
-    uint32_t virtualKey;
-} HotkeyDialogResult;
-
-static HotkeyDialogResult g_hotkeyDialogResult;
 
 static LRESULT CALLBACK AppHotkeyDialogProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     switch (msg) {
