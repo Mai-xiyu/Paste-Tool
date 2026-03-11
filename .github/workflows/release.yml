@@ -62,7 +62,7 @@ jobs:
         shell: msys2 {0}
         run: |
           mkdir -p dist
-          gcc paste_tool.c platform_win32.c app_core.c -o dist/paste_tool.exe -mwindows -lshell32 -lurlmon
+          gcc paste_tool.c platform_win32.c app_core.c -o dist/paste_tool.exe -mwindows -lshell32 -lurlmon -lwinhttp
 
       - name: Prepare portable artifact
         shell: pwsh
