@@ -45,6 +45,7 @@ typedef struct Win32AppState {
     HINSTANCE instance;
     HWND messageWindow;
     LONG isPasting;
+    BOOL hotkeyRegistered;
     NOTIFYICONDATAW trayIcon;
     AppConfig config;
 } Win32AppState;
@@ -441,8 +442,10 @@ static void AppLoadConfigFromRegistry(void) {
 
 static void AppSaveHotkeyToRegistry(void) {
     HKEY registryKey;
+    DWORD disposition;
 
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, REG_PATH, 0, KEY_SET_VALUE, &registryKey) != ERROR_SUCCESS) {
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, REG_PATH, 0, NULL, REG_OPTION_NON_VOLATILE,
+            KEY_SET_VALUE, NULL, &registryKey, &disposition) != ERROR_SUCCESS) {
         return;
     }
 
@@ -467,16 +470,20 @@ static BOOL AppRegisterWindowClass(HINSTANCE instance) {
 }
 
 static BOOL AppRegisterHotkey(HWND windowHandle) {
-    return RegisterHotKey(
+    BOOL result = RegisterHotKey(
         windowHandle,
         APP_HOTKEY_ID,
         (UINT)g_app.config.hotkeyModifiers,
         (UINT)g_app.config.hotkeyVirtualKey
     );
+    g_app.hotkeyRegistered = result;
+    return result;
 }
 
 static BOOL AppUnregisterHotkey(HWND windowHandle) {
-    return UnregisterHotKey(windowHandle, APP_HOTKEY_ID);
+    BOOL result = UnregisterHotKey(windowHandle, APP_HOTKEY_ID);
+    g_app.hotkeyRegistered = FALSE;
+    return result;
 }
 
 static void AppDrainPendingHotkeyMessages(HWND windowHandle) {
@@ -518,6 +525,12 @@ static const wchar_t* AppGetKeyName(uint32_t virtualKey) {
 
 static void AppUpdateTrayTooltip(void) {
     wchar_t modifierText[64];
+
+    if (!g_app.hotkeyRegistered) {
+        StringCchCopyW(g_app.trayIcon.szTip, ARRAYSIZE(g_app.trayIcon.szTip),
+            L"粘贴助手 (未设置热键)");
+        return;
+    }
 
     AppBuildModifierString(g_app.config.hotkeyModifiers, modifierText, ARRAYSIZE(modifierText));
 
@@ -796,12 +809,15 @@ static BOOL AppShowChangeHotkeyDialog(void) {
     RECT screenRect;
     int x, y, width, height;
 
-    wc.lpfnWndProc = AppHotkeyDialogProc;
-    wc.hInstance = g_app.instance;
-    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
-    wc.lpszClassName = HOTKEY_DIALOG_CLASS;
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    RegisterClassW(&wc);
+    if (!GetClassInfoW(g_app.instance, HOTKEY_DIALOG_CLASS, &wc)) {
+        ZeroMemory(&wc, sizeof(wc));
+        wc.lpfnWndProc = AppHotkeyDialogProc;
+        wc.hInstance = g_app.instance;
+        wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+        wc.lpszClassName = HOTKEY_DIALOG_CLASS;
+        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+        RegisterClassW(&wc);
+    }
 
     g_hotkeyDialogDone = FALSE;
     g_hotkeyDialogResult.confirmed = FALSE;
@@ -1032,8 +1048,27 @@ static LRESULT CALLBACK AppWindowProc(HWND windowHandle, UINT message, WPARAM wP
         case WM_CREATE:
             AppInitializeTrayIcon(windowHandle);
             if (!AppRegisterHotkey(windowHandle)) {
-                AppShowError(L"热键注册失败，请检查是否被占用。");
-                PostQuitMessage(0);
+                MessageBoxW(NULL,
+                    L"默认热键已被其他程序占用\uff0c请设置新的快捷键。",
+                    L"热键冲突", MB_ICONWARNING);
+
+                if (AppShowChangeHotkeyDialog()) {
+                    g_app.config.hotkeyModifiers = g_hotkeyDialogResult.modifiers;
+                    g_app.config.hotkeyVirtualKey = g_hotkeyDialogResult.virtualKey;
+
+                    if (AppRegisterHotkey(windowHandle)) {
+                        AppSaveHotkeyToRegistry();
+                    } else {
+                        AppShowError(L"新热键也注册失败，程序将以无热键模式运行。\n请通过托盘菜单「更改热键」重新设置。");
+                    }
+                } else {
+                    MessageBoxW(NULL,
+                        L"程序将以无热键模式运行。\n可随时通过托盘菜单「更改热键」设置快捷键。",
+                        L"提示", MB_ICONINFORMATION);
+                }
+
+                AppUpdateTrayTooltip();
+                Shell_NotifyIconW(NIM_MODIFY, &g_app.trayIcon);
             }
             return 0;
 
