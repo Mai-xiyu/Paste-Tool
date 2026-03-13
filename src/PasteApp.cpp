@@ -8,6 +8,8 @@
 #include <QMessageBox>
 #include <QUrl>
 #include <QStandardPaths>
+#include <QPainter>
+#include <QPixmap>
 #include <QDir>
 
 #include <QHotkey>
@@ -162,6 +164,31 @@ void PasteApp::setupHotkey() {
     updateTrayTooltip();
 }
 
+QIcon PasteApp::createTrayIcon() const {
+    QPixmap pm(32, 32);
+    pm.fill(Qt::transparent);
+    QPainter p(&pm);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    // clipboard body
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(70, 130, 220));
+    p.drawRoundedRect(4, 6, 24, 24, 3, 3);
+
+    // clipboard clip
+    p.setBrush(QColor(50, 100, 180));
+    p.drawRoundedRect(10, 2, 12, 8, 2, 2);
+
+    // text lines
+    p.setPen(QPen(Qt::white, 2));
+    p.drawLine(9, 16, 23, 16);
+    p.drawLine(9, 21, 20, 21);
+    p.drawLine(9, 26, 17, 26);
+
+    p.end();
+    return QIcon(pm);
+}
+
 void PasteApp::setupTrayIcon() {
     m_trayMenu = new QMenu();
 
@@ -176,7 +203,7 @@ void PasteApp::setupTrayIcon() {
     m_trayMenu->addSeparator();
     m_trayMenu->addAction(QStringLiteral("退出 (Exit)"), qApp, &QApplication::quit);
 
-    m_trayIcon = new QSystemTrayIcon(QIcon::fromTheme(QStringLiteral("application-x-executable")), this);
+    m_trayIcon = new QSystemTrayIcon(createTrayIcon(), this);
     m_trayIcon->setContextMenu(m_trayMenu);
     connect(m_trayIcon, &QSystemTrayIcon::activated, this, &PasteApp::onTrayActivated);
     m_trayIcon->show();

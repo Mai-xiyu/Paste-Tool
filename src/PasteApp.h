@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QSystemTrayIcon>
 #include <QMenu>
+#include <QIcon>
 #include <QSettings>
 #include <QThread>
 #include <QAtomicInt>
@@ -52,6 +53,7 @@ private:
     void setupHotkey();
     void updateTrayTooltip();
     void startPasteOperation();
+    QIcon createTrayIcon() const;
     QString buildModifierString(quint32 modifiers) const;
     QString keyName(quint32 vk) const;
 
