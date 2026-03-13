@@ -6,8 +6,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout repository
@@ -20,19 +23,26 @@ jobs:
           $version = ./scripts/read-app-version.ps1
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Set up MSYS2 and MinGW
-        uses: msys2/setup-msys2@v2
+      - name: Install Qt6
+        uses: jurplel/install-qt-action@v4
         with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            mingw-w64-x86_64-gcc
+          version: '6.7.*'
+          modules: 'qtnetworkauth'
 
-      - name: Build executable
-        shell: msys2 {0}
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Deploy Qt (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
         run: |
-          mkdir -p dist
-          gcc paste_tool.c platform_win32.c app_core.c -o dist/paste_tool.exe -mwindows -lshell32 -lurlmon -lwinhttp
+          New-Item -ItemType Directory -Force dist
+          Copy-Item build/src/Release/paste_tool.exe dist/ -ErrorAction SilentlyContinue
+          Copy-Item build/src/paste_tool.exe dist/ -ErrorAction SilentlyContinue
+          windeployqt --release --no-translations dist/paste_tool.exe
 
       - name: Prepare portable artifact
         shell: pwsh
@@ -40,11 +50,12 @@ jobs:
           ./scripts/package-artifact.ps1 -VersionLabel "v${{ steps.app_version.outputs.version }}"
 
       - name: Install Inno Setup
+        if: runner.os == 'Windows'
         shell: pwsh
-        run: |
-          choco install innosetup --no-progress -y
+        run: choco install innosetup --no-progress -y
 
       - name: Build installer
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           ./scripts/build-installer.ps1 -VersionLabel "v${{ steps.app_version.outputs.version }}"
@@ -52,11 +63,12 @@ jobs:
       - name: Upload portable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: paste_tool-v${{ steps.app_version.outputs.version }}-windows-x64-${{ github.run_number }}
-          path: dist/paste_tool-v${{ steps.app_version.outputs.version }}-windows-x64.exe
+          name: paste_tool-v${{ steps.app_version.outputs.version }}-${{ runner.os }}-x64-${{ github.run_number }}
+          path: dist/
           if-no-files-found: error
 
       - name: Upload installer artifact
+        if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: paste_tool-installer-v${{ steps.app_version.outputs.version }}-windows-x64-${{ github.run_number }}

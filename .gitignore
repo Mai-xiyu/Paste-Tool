@@ -9,3 +9,6 @@
 *.VC.db
 *.opendb
 .vs/
+build/
+dist/
+CMakeUserPresets.json

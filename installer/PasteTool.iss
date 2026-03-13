@@ -25,6 +25,10 @@ UninstallDisplayIcon={app}\paste_tool.exe
 
 [Files]
 Source: "..\dist\paste_tool.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
+Source: "..\dist\platforms\*"; DestDir: "{app}\platforms"; Flags: ignoreversion recursesubdirs
+Source: "..\dist\styles\*"; DestDir: "{app}\styles"; Flags: ignoreversion recursesubdirs
+Source: "..\dist\tls\*"; DestDir: "{app}\tls"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\Paste Tool"; Filename: "{app}\paste_tool.exe"

@@ -1,5 +1,5 @@
 param(
-    [string]$MetadataPath = "app_metadata.h"
+    [string]$MetadataPath = "core/app_metadata.h"
 )
 
 $content = Get-Content -Path $MetadataPath -Raw

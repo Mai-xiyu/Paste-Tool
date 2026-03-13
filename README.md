@@ -1,6 +1,8 @@
 # Paste Tool
 
-一个轻量级的 Windows 托盘粘贴工具，通过模拟键盘输入逐字符粘贴文本，绕过不支持 Ctrl+V 的平台限制（如 PTA、头歌等在线答题平台的代码编辑器）。
+一个轻量级的跨平台托盘粘贴工具，通过模拟键盘输入逐字符粘贴文本，绕过不支持 Ctrl+V 的平台限制（如 PTA、头歌等在线答题平台的代码编辑器）。
+
+基于 Qt6 构建，支持 Windows（macOS / Linux 后续支持中）。
 
 ## 提要
 
@@ -13,6 +15,7 @@
 - **自定义热键**：默认 Ctrl+Alt+V，可在托盘菜单「更改热键」中自由配置（Ctrl/Alt/Shift/Win + A-Z/0-9/F1-F12）
 - **检查更新**：托盘菜单一键检查 GitHub 最新版本，自动比对版本号提示更新
 - **一键下载**：支持直接下载最新便携版或安装包到 Downloads 目录
+- **跨平台架构**：Qt6 + CMake，核心粘贴算法平台无关
 
 ## 下载安装
 
@@ -58,14 +61,21 @@
 
 - **程序内检查**：托盘菜单 →「检查更新」，有新版本会提示并可跳转下载
 - **程序内下载**：托盘菜单 →「下载最新便携版」或「下载最新安装包」，直接下载到 Downloads 目录
-- **手动更新**：前往 [Release 页面](https://github.com/Mai-xiyu/Paste-Tool/releases/latest) 下载最新版本，关闭旧程序后覆盖即可
+- **手动更新**：前往 [Release 页面](https://github.com/Mai-xiyu/Paste-Tool/releases/latest) 下载最新版本
 
 ## 从源码构建
 
-需要 GCC/MinGW 环境：
+需要 Qt6 和 CMake：
 
 ```bash
-gcc paste_tool.c platform_win32.c app_core.c -o paste_tool.exe -mwindows -lshell32 -lurlmon -lwinhttp
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
+```
+
+Windows 上还需运行 `windeployqt` 部署 Qt 运行库：
+
+```bash
+windeployqt --release build/src/Release/paste_tool.exe
 ```
 
 ## 许可
