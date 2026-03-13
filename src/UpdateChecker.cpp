@@ -95,7 +95,7 @@ void UpdateChecker::downloadAsset(const QString &downloadUrl, const QString &fil
     QString outputPath = downloadDir + QDir::separator() + fileName;
 
     QNetworkAccessManager mgr;
-    QNetworkRequest req(QUrl(downloadUrl));
+    QNetworkRequest req{QUrl(downloadUrl)};
     req.setRawHeader("User-Agent", "PasteTool");
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 
