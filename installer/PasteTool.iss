@@ -1,42 +1,42 @@
-#ifndef MyAppVersion
-  #define MyAppVersion "0.0.0"
-#endif
-
-#ifndef MyOutputBaseFilename
-  #define MyOutputBaseFilename "paste_tool-installer"
-#endif
+#define MyAppName "Paste Tool"
+#define MyAppPublisher "Mai-xiyu"
+#define MyAppURL "https://github.com/Mai-xiyu/Paste-Tool"
+#define MyAppVersion GetEnv("PASTE_TOOL_VERSION")
+#define SourceExe GetEnv("PASTE_TOOL_SOURCE_EXE")
+#define OutputDir GetEnv("PASTE_TOOL_OUTPUT_DIR")
+#define OutputBaseName GetEnv("PASTE_TOOL_INSTALLER_BASENAME")
 
 [Setup]
-AppId={{B7B962A3-11E4-4E85-88D6-21F5A2ED4F2E}
-AppName=Paste Tool
+AppId={{5A491D0B-7C37-4B4D-A1C6-26B85FDE4B3F}
+AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-AppPublisher=Mai-xiyu
-DefaultDirName={localappdata}\Programs\Paste Tool
+AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}
+AppUpdatesURL={#MyAppURL}/releases/latest
+DefaultDirName={autopf}\Paste Tool
 DefaultGroupName=Paste Tool
 DisableProgramGroupPage=yes
-OutputDir=..\dist
-OutputBaseFilename={#MyOutputBaseFilename}
+OutputDir={#OutputDir}
+OutputBaseFilename={#OutputBaseName}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-PrivilegesRequired=lowest
+ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-UninstallDisplayIcon={app}\paste_tool.exe
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Tasks]
+Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"; Flags: unchecked
 
 [Files]
-Source: "..\dist\paste_tool.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\dist\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
-Source: "..\dist\platforms\*"; DestDir: "{app}\platforms"; Flags: ignoreversion recursesubdirs
-Source: "..\dist\styles\*"; DestDir: "{app}\styles"; Flags: ignoreversion recursesubdirs
-Source: "..\dist\tls\*"; DestDir: "{app}\tls"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SourceExe}"; DestDir: "{app}"; DestName: "paste_tool.exe"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\Paste Tool"; Filename: "{app}\paste_tool.exe"
-Name: "{group}\卸载 Paste Tool"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\Paste Tool"; Filename: "{app}\paste_tool.exe"; Tasks: desktopicon
 
-[Tasks]
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务："
-
 [Run]
-Filename: "{app}\paste_tool.exe"; Description: "安装完成后启动 Paste Tool"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\paste_tool.exe"; Description: "Launch Paste Tool"; Flags: nowait postinstall skipifsilent
