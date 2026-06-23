@@ -27,10 +27,15 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev libxtst-dev
+          sudo apt-get install -y gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev libxtst-dev xvfb
 
       - name: Test
+        if: runner.os != 'Linux'
         run: go test ./...
+
+      - name: Test Linux
+        if: runner.os == 'Linux'
+        run: xvfb-run -a go test ./...
 
       - name: Vet
         run: go vet ./...
