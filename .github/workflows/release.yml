@@ -83,8 +83,8 @@ jobs:
         shell: pwsh
         env:
           PASTE_TOOL_VERSION: ${{ steps.release_tag.outputs.version }}
-          PASTE_TOOL_SOURCE_EXE: dist/paste_tool-${{ steps.release_tag.outputs.tag }}-${{ matrix.slug }}${{ matrix.ext }}
-          PASTE_TOOL_OUTPUT_DIR: dist
+          PASTE_TOOL_SOURCE_EXE: ${{ github.workspace }}\dist\paste_tool-${{ steps.release_tag.outputs.tag }}-${{ matrix.slug }}${{ matrix.ext }}
+          PASTE_TOOL_OUTPUT_DIR: ${{ github.workspace }}\dist
           PASTE_TOOL_INSTALLER_BASENAME: paste_tool-installer-${{ steps.release_tag.outputs.tag }}-${{ matrix.slug }}
         run: |
           iscc installer/PasteTool.iss
