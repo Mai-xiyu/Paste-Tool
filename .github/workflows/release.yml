@@ -103,4 +103,5 @@ jobs:
           tag_name: ${{ steps.release_tag.outputs.tag }}
           generate_release_notes: true
           fail_on_unmatched_files: true
+          overwrite_files: true
           files: dist/*
