@@ -1,83 +1,110 @@
 # Paste Tool
 
-一个轻量级的跨平台托盘粘贴工具，通过模拟键盘输入逐字符粘贴文本，绕过不支持 Ctrl+V 的平台限制（如 PTA、头歌等在线答题平台的代码编辑器也支持头歌或者其他类似VNC等连接的Linux、Windows）。
+Paste Tool 是一个 Go 实现的跨平台托盘粘贴工具。它通过模拟键盘逐字符输入文本，用于不可靠或不支持 `Ctrl+V` 的终端、远程桌面、VNC、在线代码编辑器和答题平台。
 
-基于 Qt6 构建，支持 Windows（macOS / Linux 后续支持中）。
+## 功能
 
-## 提要
+- 跨平台核心：Windows、macOS、Linux X11。
+- 明确边界：Linux Wayland 无 X11 `DISPLAY` 时返回 unsupported，不伪装成可用。
+- CLI：`paste`、`doctor`、`config`、`update`、`version`。
+- GUI：Fyne 托盘常驻和设置窗口。
+- 默认热键：`Ctrl+Alt+V`。
+- 默认粘贴参数：启动延迟 `3000ms`、字符间隔 `8ms`、批量 `50`、批间暂停 `20ms`。
+- 更新检查：读取 GitHub latest release，支持下载便携版或安装包资产。
 
-这工具本来是给我的前女友方便做 PTA、头歌 等平台做题搞的，最近想了想，把它整理和优化之后就开源了。
+## 平台要求
 
-## 功能特性
+- Windows：使用 `SendInput`。如果目标窗口权限级别高于 Paste Tool，Windows UIPI 可能阻止输入。
+- macOS：使用 CoreGraphics 事件注入，需要 Accessibility/Input Monitoring 权限。
+- Linux：X11 使用 XTest；Wayland 默认不允许通用全局输入注入，本项目只给出明确错误提示。
 
-- **逐字符模拟输入**：兼容终端（PuTTY、SSH、Windows Terminal）和浏览器在线编辑器
-- **系统托盘运行**：不占桌面空间，右键菜单操作
-- **自定义热键**：默认 Ctrl+Alt+V，可在托盘菜单「更改热键」中自由配置（Ctrl/Alt/Shift/Win + A-Z/0-9/F1-F12）
-- **检查更新**：托盘菜单一键检查 GitHub 最新版本，自动比对版本号提示更新
-- **一键下载**：支持直接下载最新便携版或安装包到 Downloads 目录
-- **跨平台架构**：Qt6 + CMake，核心粘贴算法平台无关
+## 使用
 
-## 下载安装
+启动托盘 GUI：
 
-### 便携版（推荐）
+```bash
+paste-tool
+```
 
-直接下载 exe，双击运行即可：
+CLI 粘贴剪贴板文本：
 
-- [最新便携版下载](https://github.com/Mai-xiyu/Paste-Tool/releases/latest/download/paste_tool-latest-windows-x64.exe)
+```bash
+paste-tool paste --source clipboard
+```
 
-### 安装包
+从参数 dry-run 验证文本规范化：
 
-标准安装，支持开始菜单和桌面快捷方式：
+```bash
+paste-tool paste --source arg --text "hello" --dry-run
+```
 
-- [最新安装包下载](https://github.com/Mai-xiyu/Paste-Tool/releases/latest/download/paste_tool-installer-latest.exe)
+诊断当前平台：
 
-### 历史版本
+```bash
+paste-tool doctor
+```
 
-- [所有 Release](https://github.com/Mai-xiyu/Paste-Tool/releases)
+修改配置：
 
-## 使用方法
+```bash
+paste-tool config set hotkey Ctrl+Alt+V
+paste-tool config set paste.start_delay_ms 3000
+paste-tool config get
+```
 
-1. **复制**：先复制你要粘贴的代码或文本（Ctrl+C）
-2. **触发**：按下快捷键（默认 Ctrl+Alt+V）
-3. **准备**：听到提示音后，在 3 秒内切换到目标输入框
-4. **粘贴**：程序自动逐字符模拟键盘输入，完成后热键自动恢复
+检查和下载更新：
 
-### 托盘菜单
-
-右键系统托盘图标可使用以下功能：
-
-| 菜单项 | 说明 |
-|--------|------|
-| 关于 | 查看版本信息和项目链接 |
-| 使用说明 | 查看快捷键和使用帮助 |
-| 更改热键 | 自定义快捷键组合 |
-| 检查更新 | 查询 GitHub 最新版本 |
-| 下载最新便携版 | 自动下载到 Downloads 目录 |
-| 下载最新安装包 | 自动下载并可选启动安装 |
-| 仓库主页 | 打开 GitHub 项目页面 |
-| 退出 | 关闭程序 |
-
-## 更新方式
-
-- **程序内检查**：托盘菜单 →「检查更新」，有新版本会提示并可跳转下载
-- **程序内下载**：托盘菜单 →「下载最新便携版」或「下载最新安装包」，直接下载到 Downloads 目录
-- **手动更新**：前往 [Release 页面](https://github.com/Mai-xiyu/Paste-Tool/releases/latest) 下载最新版本
+```bash
+paste-tool update check
+paste-tool update download portable
+paste-tool update download installer
+```
 
 ## 从源码构建
 
-需要 Qt6 和 CMake：
+需要 Go。Linux 构建 GUI 和 X11 输入层时还需要桌面开发库，例如 Debian/Ubuntu：
 
 ```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release
+sudo apt-get install gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev libxtst-dev
 ```
 
-Windows 上还需运行 `windeployqt` 部署 Qt 运行库：
+构建：
 
 ```bash
-windeployqt --release build/src/Release/paste_tool.exe
+go build -o dist/paste_tool ./cmd/paste-tool
 ```
 
-## 许可
+测试：
 
-开源项目，仓库地址：https://github.com/Mai-xiyu/Paste-Tool
+```bash
+go test ./...
+go vet ./...
+```
+
+## 配置文件
+
+配置文件位于系统用户配置目录：
+
+```bash
+paste-tool config path
+```
+
+默认内容等价于：
+
+```json
+{
+  "hotkey": {
+    "modifiers": ["Ctrl", "Alt"],
+    "key": "V"
+  },
+  "paste": {
+    "start_delay_ms": 3000,
+    "inter_key_delay_ms": 8,
+    "batch_size": 50,
+    "batch_pause_ms": 20
+  },
+  "update": {
+    "repository": "Mai-xiyu/Paste-Tool"
+  }
+}
+```

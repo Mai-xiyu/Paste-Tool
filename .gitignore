@@ -6,9 +6,11 @@
 *.log
 *.tmp
 *.user
+*.test
 *.VC.db
 *.opendb
 .vs/
 build/
 dist/
+coverage.out
 CMakeUserPresets.json
