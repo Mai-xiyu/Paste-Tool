@@ -351,40 +351,17 @@ func (c *controller) setStatus(text string) {
 func parseHotkey(cfg config.HotkeyConfig) ([]hotkey.Modifier, hotkey.Key, error) {
 	mods := make([]hotkey.Modifier, 0, len(cfg.Modifiers))
 	for _, mod := range cfg.Modifiers {
-		switch strings.ToLower(strings.TrimSpace(mod)) {
-		case "ctrl", "control":
-			mods = append(mods, hotkey.ModCtrl)
-		case "alt":
-			mods = append(mods, hotkey.ModAlt)
-		case "shift":
-			mods = append(mods, hotkey.ModShift)
-		case "win", "super", "cmd", "meta":
-			mods = append(mods, hotkey.ModWin)
+		parsed, ok := hotkeyModifierByName(mod)
+		if ok {
+			mods = append(mods, parsed)
 		}
 	}
 	if len(mods) == 0 {
 		return nil, 0, errors.New("hotkey requires at least one modifier")
 	}
-	key, err := parseHotkeyKey(cfg.Key)
+	key, err := hotkeyKeyByName(cfg.Key)
 	if err != nil {
 		return nil, 0, err
 	}
 	return mods, key, nil
-}
-
-func parseHotkeyKey(value string) (hotkey.Key, error) {
-	key := strings.ToUpper(strings.TrimSpace(value))
-	if len(key) == 1 {
-		ch := key[0]
-		if (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') {
-			return hotkey.Key(ch), nil
-		}
-	}
-	if strings.HasPrefix(key, "F") {
-		n, err := strconv.Atoi(strings.TrimPrefix(key, "F"))
-		if err == nil && n >= 1 && n <= 12 {
-			return hotkey.Key(uint32(hotkey.KeyF1) + uint32(n-1)), nil
-		}
-	}
-	return 0, fmt.Errorf("unsupported hotkey key %q", value)
 }
