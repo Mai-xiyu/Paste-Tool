@@ -45,8 +45,14 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
           $ext = ""
-          if ("${{ runner.os }}" -eq "Windows") { $ext = ".exe" }
-          go build -o "dist/paste_tool$ext" ./cmd/paste-tool
+          if ("${{ runner.os }}" -eq "Windows") {
+            $ext = ".exe"
+            go build -o "dist/paste_tool_cli$ext" ./cmd/paste-tool
+            go build -ldflags "-H windowsgui" -o "dist/paste_tool$ext" ./cmd/paste-tool-gui
+          }
+          if ("${{ runner.os }}" -ne "Windows") {
+            go build -o "dist/paste_tool$ext" ./cmd/paste-tool
+          }
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

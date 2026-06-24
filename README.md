@@ -78,6 +78,12 @@ sudo apt-get install gcc libgl1-mesa-dev xorg-dev libxkbcommon-dev libxtst-dev
 go build -o dist/paste_tool ./cmd/paste-tool
 ```
 
+Windows 发布版使用无控制台 GUI 入口，避免双击时弹出终端：
+
+```bash
+go build -ldflags "-H windowsgui" -o dist/paste_tool.exe ./cmd/paste-tool-gui
+```
+
 测试：
 
 ```bash

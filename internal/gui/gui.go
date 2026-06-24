@@ -176,7 +176,6 @@ func (c *controller) setupTray() {
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Quit", c.app.Quit),
 	)
-	desk.SetSystemTrayIcon(theme.ContentPasteIcon())
 	desk.SetSystemTrayMenu(menu)
 	desk.SetSystemTrayWindow(c.window)
 }
