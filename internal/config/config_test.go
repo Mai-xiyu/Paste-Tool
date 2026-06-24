@@ -13,6 +13,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Paste.StartDelayMS != DefaultStartDelayMS {
 		t.Fatalf("StartDelayMS = %d", cfg.Paste.StartDelayMS)
 	}
+	if cfg.UI.Language != "auto" {
+		t.Fatalf("language = %q", cfg.UI.Language)
+	}
 }
 
 func TestSetAndSaveLoad(t *testing.T) {
@@ -23,6 +26,9 @@ func TestSetAndSaveLoad(t *testing.T) {
 	}
 	if err := cfg.Set("paste.batch_size", "12"); err != nil {
 		t.Fatalf("Set batch size: %v", err)
+	}
+	if err := cfg.Set("ui.language", "zh_CN"); err != nil {
+		t.Fatalf("Set language: %v", err)
 	}
 	if err := Save(path, cfg); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -37,6 +43,9 @@ func TestSetAndSaveLoad(t *testing.T) {
 	if loaded.Paste.BatchSize != 12 {
 		t.Fatalf("loaded batch size = %d", loaded.Paste.BatchSize)
 	}
+	if loaded.UI.Language != "zh-CN" {
+		t.Fatalf("loaded language = %q", loaded.UI.Language)
+	}
 }
 
 func TestRejectsInvalidConfigKey(t *testing.T) {
@@ -49,6 +58,9 @@ func TestRejectsInvalidConfigKey(t *testing.T) {
 	}
 	if err := cfg.Set("hotkey", "Ctrl+Alt+Bad"); err == nil {
 		t.Fatal("expected invalid hotkey key")
+	}
+	if err := cfg.Set("ui.language", "fr"); err == nil {
+		t.Fatal("expected invalid language")
 	}
 }
 

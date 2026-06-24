@@ -35,6 +35,7 @@ type Config struct {
 	Hotkey HotkeyConfig `json:"hotkey"`
 	Paste  PasteConfig  `json:"paste"`
 	Update UpdateConfig `json:"update"`
+	UI     UIConfig     `json:"ui"`
 }
 
 type HotkeyConfig struct {
@@ -53,6 +54,10 @@ type UpdateConfig struct {
 	Repository string `json:"repository"`
 }
 
+type UIConfig struct {
+	Language string `json:"language"`
+}
+
 func Default() Config {
 	return Config{
 		Hotkey: HotkeyConfig{
@@ -67,6 +72,9 @@ func Default() Config {
 		},
 		Update: UpdateConfig{
 			Repository: "Mai-xiyu/Paste-Tool",
+		},
+		UI: UIConfig{
+			Language: "auto",
 		},
 	}
 }
@@ -144,12 +152,16 @@ func (c *Config) applyDefaults() {
 	if strings.TrimSpace(c.Update.Repository) == "" {
 		c.Update.Repository = d.Update.Repository
 	}
+	if strings.TrimSpace(c.UI.Language) == "" {
+		c.UI.Language = d.UI.Language
+	}
 	c.normalize()
 }
 
 func (c *Config) normalize() {
 	c.Hotkey.Key = normalizeKey(c.Hotkey.Key)
 	c.Hotkey.Modifiers = normalizeModifiers(c.Hotkey.Modifiers)
+	c.UI.Language = normalizeLanguage(c.UI.Language)
 }
 
 func (c Config) Validate() error {
@@ -173,6 +185,9 @@ func (c Config) Validate() error {
 	}
 	if strings.Count(c.Update.Repository, "/") != 1 {
 		return errors.New("update.repository must use owner/repo format")
+	}
+	if normalizeLanguage(c.UI.Language) == "" {
+		return errors.New("ui.language must be auto, zh-CN, or en")
 	}
 	return nil
 }
@@ -219,6 +234,8 @@ func (c Config) Get(key string) (string, error) {
 		return strconv.Itoa(c.Paste.BatchPauseMS), nil
 	case "update.repository":
 		return c.Update.Repository, nil
+	case "ui.language":
+		return c.UI.Language, nil
 	default:
 		return "", fmt.Errorf("unknown config key %q", key)
 	}
@@ -266,6 +283,12 @@ func (c *Config) Set(key, value string) error {
 		c.Paste.BatchPauseMS = n
 	case "update.repository":
 		c.Update.Repository = value
+	case "ui.language":
+		lang := normalizeLanguage(value)
+		if lang == "" {
+			return errors.New("ui.language must be auto, zh-CN, or en")
+		}
+		c.UI.Language = lang
 	default:
 		return fmt.Errorf("unknown config key %q", key)
 	}
@@ -317,6 +340,23 @@ func normalizeKey(key string) string {
 		}
 	}
 	return ""
+}
+
+func normalizeLanguage(value string) string {
+	value = strings.TrimSpace(strings.ReplaceAll(value, "_", "-"))
+	if value == "" {
+		return "auto"
+	}
+	switch strings.ToLower(value) {
+	case "auto", "system":
+		return "auto"
+	case "zh", "zh-cn", "zh-hans", "zh-hans-cn", "cn":
+		return "zh-CN"
+	case "en", "en-us", "en-gb":
+		return "en"
+	default:
+		return ""
+	}
 }
 
 func DefaultConfigPathForDisplay() string {

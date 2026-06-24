@@ -52,6 +52,7 @@ paste-tool doctor
 
 ```bash
 paste-tool config set hotkey Ctrl+Alt+V
+paste-tool config set ui.language zh-CN
 paste-tool config set paste.start_delay_ms 3000
 paste-tool config get
 ```
@@ -115,6 +116,11 @@ paste-tool config path
   },
   "update": {
     "repository": "Mai-xiyu/Paste-Tool"
+  },
+  "ui": {
+    "language": "auto"
   }
 }
 ```
+
+`ui.language` 支持 `auto`、`zh-CN`、`en`。默认 `auto` 会跟随系统语言，无法识别时回退到英文。
