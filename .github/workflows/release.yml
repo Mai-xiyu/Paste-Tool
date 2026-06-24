@@ -68,7 +68,13 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
           $name = "paste_tool-${{ steps.release_tag.outputs.tag }}-${{ matrix.slug }}${{ matrix.ext }}"
-          go build -ldflags "-s -w -X github.com/Mai-xiyu/Paste-Tool/internal/metadata.Version=${{ steps.release_tag.outputs.version }}" -o "dist/$name" ./cmd/paste-tool
+          $ldflags = "-s -w -X github.com/Mai-xiyu/Paste-Tool/internal/metadata.Version=${{ steps.release_tag.outputs.version }}"
+          if ("${{ runner.os }}" -eq "Windows") {
+            $ldflags = "$ldflags -H windowsgui"
+            go build -ldflags "$ldflags" -o "dist/$name" ./cmd/paste-tool-gui
+          } else {
+            go build -ldflags "$ldflags" -o "dist/$name" ./cmd/paste-tool
+          }
           if ("${{ runner.os }}" -eq "Windows") {
             Copy-Item "dist/$name" "dist/paste_tool-latest-windows-x64.exe" -Force
           }
