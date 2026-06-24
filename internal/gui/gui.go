@@ -3,6 +3,7 @@ package gui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"runtime"
 	"strconv"
@@ -38,9 +39,10 @@ type controller struct {
 	status *widget.Label
 	diag   *widget.Label
 
-	hotkeyMu   sync.Mutex
-	hotkey     *hotkey.Hotkey
-	hotkeyDone chan struct{}
+	hotkeyMu         sync.Mutex
+	hotkey           *hotkey.Hotkey
+	hotkeyDone       chan struct{}
+	registeredHotkey string
 
 	pasting atomic.Bool
 }
@@ -118,6 +120,7 @@ func (c *controller) buildContent(w fyne.Window) fyne.CanvasObject {
 	)
 
 	saveBtn := widget.NewButtonWithIcon(c.tr.T(i18n.ButtonSave), theme.DocumentSaveIcon(), func() {
+		previous := c.cfg
 		next := c.cfg
 		if err := next.Set("hotkey", hotkeyEntry.Text); err != nil {
 			dialog.ShowError(err, w)
@@ -138,21 +141,37 @@ func (c *controller) buildContent(w fyne.Window) fyne.CanvasObject {
 				return
 			}
 		}
-		if err := config.Save(c.cfgPath, next); err != nil {
+		c.cfg = next
+		c.tr = i18n.New(c.cfg.UI.Language)
+		if err := c.registerHotkey(); err != nil {
+			c.cfg = previous
+			c.tr = i18n.New(c.cfg.UI.Language)
+			w.SetTitle(c.tr.T(i18n.AppTitle))
+			w.SetContent(c.buildContent(w))
+			c.setupTray()
+			c.refreshDiagnostics()
+			c.setStatus(c.tr.T(i18n.StatusHotkeyUnavailable, err.Error()))
 			dialog.ShowError(err, w)
 			return
 		}
-		c.cfg = next
-		c.tr = i18n.New(c.cfg.UI.Language)
+		if err := config.Save(c.cfgPath, next); err != nil {
+			c.cfg = previous
+			c.tr = i18n.New(c.cfg.UI.Language)
+			restoreErr := c.registerHotkey()
+			w.SetTitle(c.tr.T(i18n.AppTitle))
+			w.SetContent(c.buildContent(w))
+			c.setupTray()
+			c.refreshDiagnostics()
+			if restoreErr != nil {
+				c.setStatus(c.tr.T(i18n.StatusHotkeyUnavailable, restoreErr.Error()))
+			}
+			dialog.ShowError(err, w)
+			return
+		}
 		w.SetTitle(c.tr.T(i18n.AppTitle))
 		w.SetContent(c.buildContent(w))
 		c.setupTray()
 		c.refreshDiagnostics()
-		if err := c.registerHotkey(); err != nil {
-			c.setStatus(c.tr.T(i18n.StatusSavedHotkeyRegisterFailed, err.Error()))
-			dialog.ShowError(err, w)
-			return
-		}
 		c.setStatus(c.tr.T(i18n.StatusSaved, c.cfg.HotkeyString()))
 	})
 
@@ -204,30 +223,56 @@ func (c *controller) registerHotkey() error {
 	if err != nil {
 		return err
 	}
+	requested := c.cfg.HotkeyString()
+
+	c.hotkeyMu.Lock()
+	defer c.hotkeyMu.Unlock()
+	if c.hotkey != nil && c.registeredHotkey == requested {
+		return nil
+	}
+
+	previous := c.registeredHotkey
+	c.unregisterHotkeyLocked()
+
+	hk := hotkey.New(mods, key)
+	if err := hk.Register(); err != nil {
+		if previous != "" {
+			if restoreErr := c.registerHotkeyStringLocked(previous); restoreErr != nil {
+				return fmt.Errorf("%w; restore previous hotkey %s: %v", err, previous, restoreErr)
+			}
+		}
+		return err
+	}
+	c.setHotkeyLocked(hk, requested)
+	return nil
+}
+
+func (c *controller) registerHotkeyStringLocked(value string) error {
+	cfg := config.Default()
+	if err := cfg.Set("hotkey", value); err != nil {
+		return err
+	}
+	mods, key, err := parseHotkey(cfg.Hotkey)
+	if err != nil {
+		return err
+	}
 	hk := hotkey.New(mods, key)
 	if err := hk.Register(); err != nil {
 		return err
 	}
-
-	c.hotkeyMu.Lock()
-	if c.hotkeyDone != nil {
-		close(c.hotkeyDone)
-	}
-	if c.hotkey != nil {
-		_ = c.hotkey.Unregister()
-	}
-	done := make(chan struct{})
-	c.hotkey = hk
-	c.hotkeyDone = done
-	c.hotkeyMu.Unlock()
-
-	go c.listenHotkey(hk, done)
+	c.setHotkeyLocked(hk, cfg.HotkeyString())
 	return nil
 }
 
-func (c *controller) unregisterHotkey() {
-	c.hotkeyMu.Lock()
-	defer c.hotkeyMu.Unlock()
+func (c *controller) setHotkeyLocked(hk *hotkey.Hotkey, value string) {
+	done := make(chan struct{})
+	c.hotkey = hk
+	c.hotkeyDone = done
+	c.registeredHotkey = value
+	go c.listenHotkey(hk, done)
+}
+
+func (c *controller) unregisterHotkeyLocked() {
 	if c.hotkeyDone != nil {
 		close(c.hotkeyDone)
 		c.hotkeyDone = nil
@@ -236,6 +281,13 @@ func (c *controller) unregisterHotkey() {
 		_ = c.hotkey.Unregister()
 		c.hotkey = nil
 	}
+	c.registeredHotkey = ""
+}
+
+func (c *controller) unregisterHotkey() {
+	c.hotkeyMu.Lock()
+	defer c.hotkeyMu.Unlock()
+	c.unregisterHotkeyLocked()
 }
 
 func (c *controller) listenHotkey(hk *hotkey.Hotkey, done <-chan struct{}) {
