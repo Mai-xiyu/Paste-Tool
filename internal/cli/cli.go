@@ -15,6 +15,7 @@ import (
 	"github.com/Mai-xiyu/Paste-Tool/internal/config"
 	"github.com/Mai-xiyu/Paste-Tool/internal/core"
 	"github.com/Mai-xiyu/Paste-Tool/internal/gui"
+	"github.com/Mai-xiyu/Paste-Tool/internal/i18n"
 	"github.com/Mai-xiyu/Paste-Tool/internal/metadata"
 	"github.com/Mai-xiyu/Paste-Tool/internal/platform"
 	"github.com/Mai-xiyu/Paste-Tool/internal/update"
@@ -22,6 +23,7 @@ import (
 )
 
 func Run(args []string, stdout, stderr io.Writer) int {
+	tr := translatorFromDefaultConfig()
 	if stdout == nil {
 		stdout = io.Discard
 	}
@@ -55,16 +57,17 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "%s %s %s/%s\n", metadata.Name, metadata.Version, runtime.GOOS, runtime.GOARCH)
 		return 0
 	case "help", "-h", "--help":
-		printUsage(stdout)
+		printUsage(stdout, tr)
 		return 0
 	default:
-		fmt.Fprintf(stderr, "unknown command %q\n\n", args[0])
-		printUsage(stderr)
+		fmt.Fprintf(stderr, tr.T(i18n.CLIUnknownCommand)+"\n\n", args[0])
+		printUsage(stderr, tr)
 		return 2
 	}
 }
 
 func runPaste(args []string, stdout, stderr io.Writer) int {
+	tr := translatorFromDefaultConfig()
 	fs := flag.NewFlagSet("paste", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	source := fs.String("source", "clipboard", "clipboard, stdin, file, or arg")
@@ -77,13 +80,14 @@ func runPaste(args []string, stdout, stderr io.Writer) int {
 	}
 
 	cfg, _, err := config.LoadDefault()
+	tr = i18n.New(cfg.UI.Language)
 	if err != nil {
-		fmt.Fprintf(stderr, "config: %v\n", err)
+		fmt.Fprintf(stderr, tr.T(i18n.CLIConfigLoadFailed)+"\n", err)
 		return 1
 	}
 	input, err := readPasteInput(*source, *text, *fileName, fs.Args(), os.Stdin)
 	if err != nil {
-		fmt.Fprintf(stderr, "paste input: %v\n", err)
+		fmt.Fprintf(stderr, tr.T(i18n.CLIPasteInputFailed)+"\n", err)
 		return 1
 	}
 	options := core.Options{
@@ -98,7 +102,7 @@ func runPaste(args []string, stdout, stderr io.Writer) int {
 	if *dryRun {
 		recorder := &core.Recorder{}
 		if err := core.PasteTextWithSleeper(ctx, input, options, recorder, noSleep{}); err != nil {
-			fmt.Fprintf(stderr, "dry-run: %v\n", err)
+			fmt.Fprintf(stderr, tr.T(i18n.CLIDryRunFailed)+"\n", err)
 			return 1
 		}
 		fmt.Fprint(stdout, recorder.String())
@@ -107,31 +111,38 @@ func runPaste(args []string, stdout, stderr io.Writer) int {
 
 	driver := platform.NewDriver()
 	if err := core.PasteText(ctx, input, options, driver); err != nil {
-		fmt.Fprintf(stderr, "paste: %v\n", err)
+		fmt.Fprintf(stderr, tr.T(i18n.CLIPasteFailed)+"\n", err)
 		return 1
 	}
 	return 0
 }
 
 func runDoctor(args []string, stdout, stderr io.Writer) int {
+	tr := translatorFromDefaultConfig()
 	fs := flag.NewFlagSet("doctor", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	cfg, path, err := config.LoadDefault()
+	tr = i18n.New(cfg.UI.Language)
 	if err != nil {
-		fmt.Fprintf(stderr, "config: %v\n", err)
+		fmt.Fprintf(stderr, tr.T(i18n.CLIConfigLoadFailed)+"\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "%s %s\n", metadata.Name, metadata.Version)
-	fmt.Fprintf(stdout, "config: %s\n", path)
-	fmt.Fprintf(stdout, "hotkey: %s\n", cfg.HotkeyString())
-	fmt.Fprintf(stdout, "paste: start_delay=%dms inter_key=%dms batch_size=%d batch_pause=%dms\n",
-		cfg.Paste.StartDelayMS, cfg.Paste.InterKeyDelayMS, cfg.Paste.BatchSize, cfg.Paste.BatchPauseMS)
+	fmt.Fprintln(stdout, tr.T(i18n.CLIDoctorHeader, metadata.Name, metadata.Version))
+	fmt.Fprintln(stdout, tr.T(i18n.CLIDoctorConfig, path))
+	fmt.Fprintln(stdout, tr.T(i18n.CLIDoctorHotkey, cfg.HotkeyString()))
+	fmt.Fprintln(stdout, tr.T(
+		i18n.CLIDoctorPaste,
+		cfg.Paste.StartDelayMS,
+		cfg.Paste.InterKeyDelayMS,
+		cfg.Paste.BatchSize,
+		cfg.Paste.BatchPauseMS,
+	))
 
 	driver := platform.NewDriver()
-	fmt.Fprintf(stdout, "driver: %s\n", driver.Name())
+	fmt.Fprintln(stdout, tr.T(i18n.CLIDoctorDriver, driver.Name()))
 	exitCode := 0
 	for _, check := range driver.Check(context.Background()) {
 		fmt.Fprintf(stdout, "[%s] %s: %s\n", check.Status, check.Name, check.Detail)
@@ -140,21 +151,23 @@ func runDoctor(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	if err := clipboard.Init(); err != nil {
-		fmt.Fprintf(stdout, "[warning] clipboard: %v\n", err)
+		fmt.Fprintln(stdout, tr.T(i18n.CLIDoctorClipboardWarning, err))
 	} else {
-		fmt.Fprintln(stdout, "[ok] clipboard: text clipboard backend initialized")
+		fmt.Fprintln(stdout, tr.T(i18n.CLIDoctorClipboardOK))
 	}
 	return exitCode
 }
 
 func runConfig(args []string, stdout, stderr io.Writer) int {
+	tr := translatorFromDefaultConfig()
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "config requires get, set, path, or reset")
+		fmt.Fprintln(stderr, tr.T(i18n.CLIConfigRequiresCommand))
 		return 2
 	}
 	cfg, path, err := config.LoadDefault()
+	tr = i18n.New(cfg.UI.Language)
 	if err != nil {
-		fmt.Fprintf(stderr, "config: %v\n", err)
+		fmt.Fprintf(stderr, tr.T(i18n.CLIConfigLoadFailed)+"\n", err)
 		return 1
 	}
 	switch args[0] {
@@ -168,47 +181,49 @@ func runConfig(args []string, stdout, stderr io.Writer) int {
 		}
 		value, err := cfg.Get(key)
 		if err != nil {
-			fmt.Fprintf(stderr, "config get: %v\n", err)
+			fmt.Fprintf(stderr, tr.T(i18n.CLIConfigGetFailed)+"\n", err)
 			return 1
 		}
 		fmt.Fprintln(stdout, value)
 		return 0
 	case "set":
 		if len(args) < 3 {
-			fmt.Fprintln(stderr, "usage: paste-tool config set <key> <value>")
+			fmt.Fprintln(stderr, tr.T(i18n.CLIConfigSetUsage))
 			return 2
 		}
 		if err := cfg.Set(args[1], strings.Join(args[2:], " ")); err != nil {
-			fmt.Fprintf(stderr, "config set: %v\n", err)
+			fmt.Fprintf(stderr, tr.T(i18n.CLIConfigSetFailed)+"\n", err)
 			return 1
 		}
 		if err := config.Save(path, cfg); err != nil {
-			fmt.Fprintf(stderr, "config save: %v\n", err)
+			fmt.Fprintf(stderr, tr.T(i18n.CLIConfigSaveFailed)+"\n", err)
 			return 1
 		}
-		fmt.Fprintf(stdout, "saved %s\n", path)
+		fmt.Fprintln(stdout, tr.T(i18n.CLIConfigSaved, path))
 		return 0
 	case "reset":
 		if err := config.Save(path, config.Default()); err != nil {
-			fmt.Fprintf(stderr, "config reset: %v\n", err)
+			fmt.Fprintf(stderr, tr.T(i18n.CLIConfigResetFailed)+"\n", err)
 			return 1
 		}
-		fmt.Fprintf(stdout, "reset %s\n", path)
+		fmt.Fprintln(stdout, tr.T(i18n.CLIConfigReset, path))
 		return 0
 	default:
-		fmt.Fprintf(stderr, "unknown config command %q\n", args[0])
+		fmt.Fprintf(stderr, tr.T(i18n.CLIUnknownConfigCommand)+"\n", args[0])
 		return 2
 	}
 }
 
 func runUpdate(args []string, stdout, stderr io.Writer) int {
+	tr := translatorFromDefaultConfig()
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "update requires check or download")
+		fmt.Fprintln(stderr, tr.T(i18n.CLIUpdateRequiresCommand))
 		return 2
 	}
 	cfg, _, err := config.LoadDefault()
+	tr = i18n.New(cfg.UI.Language)
 	if err != nil {
-		fmt.Fprintf(stderr, "config: %v\n", err)
+		fmt.Fprintf(stderr, tr.T(i18n.CLIConfigLoadFailed)+"\n", err)
 		return 1
 	}
 	client := update.NewClient(cfg.Update.Repository)
@@ -219,24 +234,24 @@ func runUpdate(args []string, stdout, stderr io.Writer) int {
 	case "check":
 		release, err := client.Latest(ctx)
 		if err != nil {
-			fmt.Fprintf(stderr, "update check: %v\n", err)
+			fmt.Fprintf(stderr, tr.T(i18n.CLIUpdateCheckFailed)+"\n", err)
 			return 1
 		}
 		if update.HasUpdate(metadata.Version, release) {
-			fmt.Fprintf(stdout, "update available: %s -> %s\n%s\n", metadata.Version, release.TagName, release.HTMLURL)
+			fmt.Fprintln(stdout, tr.T(i18n.CLIUpdateAvailable, metadata.Version, release.TagName, release.HTMLURL))
 		} else {
-			fmt.Fprintf(stdout, "current version %s is up to date against latest %s\n", metadata.Version, release.TagName)
+			fmt.Fprintln(stdout, tr.T(i18n.CLIUpdateUpToDate, metadata.Version, release.TagName))
 		}
 		return 0
 	case "download":
-		return runUpdateDownload(args[1:], client, ctx, stdout, stderr)
+		return runUpdateDownload(args[1:], client, ctx, stdout, stderr, tr)
 	default:
-		fmt.Fprintf(stderr, "unknown update command %q\n", args[0])
+		fmt.Fprintf(stderr, tr.T(i18n.CLIUnknownUpdateCommand)+"\n", args[0])
 		return 2
 	}
 }
 
-func runUpdateDownload(args []string, client update.Client, ctx context.Context, stdout, stderr io.Writer) int {
+func runUpdateDownload(args []string, client update.Client, ctx context.Context, stdout, stderr io.Writer, tr i18n.Translator) int {
 	fs := flag.NewFlagSet("update download", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	kind := fs.String("kind", "portable", "portable or installer")
@@ -249,21 +264,21 @@ func runUpdateDownload(args []string, client update.Client, ctx context.Context,
 	}
 	release, err := client.Latest(ctx)
 	if err != nil {
-		fmt.Fprintf(stderr, "update download: %v\n", err)
+		fmt.Fprintf(stderr, tr.T(i18n.CLIUpdateCheckFailed)+"\n", err)
 		return 1
 	}
 	asset, err := update.SelectAsset(release, *kind, runtime.GOOS, runtime.GOARCH)
 	if err != nil {
-		fmt.Fprintf(stderr, "select asset: %v\n", err)
+		fmt.Fprintf(stderr, tr.T(i18n.CLIUpdateSelectAssetFailed)+"\n", err)
 		return 1
 	}
 	path, err := client.Download(ctx, asset, *outputDir)
 	if err != nil {
-		fmt.Fprintf(stderr, "download asset: %v\n", err)
+		fmt.Fprintf(stderr, tr.T(i18n.CLIUpdateDownloadAssetFailed)+"\n", err)
 		return 1
 	}
 	abs, _ := filepath.Abs(path)
-	fmt.Fprintf(stdout, "downloaded %s\n", abs)
+	fmt.Fprintln(stdout, tr.T(i18n.CLIUpdateDownloaded, abs))
 	return 0
 }
 
@@ -308,15 +323,14 @@ func (noSleep) Sleep(ctx context.Context, _ time.Duration) error {
 	return ctx.Err()
 }
 
-func printUsage(w io.Writer) {
-	fmt.Fprintln(w, `Usage:
-  paste-tool                         Launch tray GUI
-  paste-tool gui                     Launch tray GUI
-  paste-tool paste [flags]           Type text into the focused target
-  paste-tool doctor                  Print platform and config diagnostics
-  paste-tool config get [key]        Print config
-  paste-tool config set <key> <val>  Update config
-  paste-tool update check            Check GitHub latest release
-  paste-tool update download [kind]  Download latest portable or installer
-  paste-tool version                 Print version`)
+func printUsage(w io.Writer, tr i18n.Translator) {
+	fmt.Fprintln(w, tr.T(i18n.CLIUsage))
+}
+
+func translatorFromDefaultConfig() i18n.Translator {
+	cfg, _, err := config.LoadDefault()
+	if err != nil {
+		return i18n.New("auto")
+	}
+	return i18n.New(cfg.UI.Language)
 }

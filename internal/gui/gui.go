@@ -3,7 +3,6 @@ package gui
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 	"runtime"
 	"strconv"
@@ -21,6 +20,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/Mai-xiyu/Paste-Tool/internal/config"
 	"github.com/Mai-xiyu/Paste-Tool/internal/core"
+	"github.com/Mai-xiyu/Paste-Tool/internal/i18n"
 	"github.com/Mai-xiyu/Paste-Tool/internal/metadata"
 	"github.com/Mai-xiyu/Paste-Tool/internal/platform"
 	"github.com/Mai-xiyu/Paste-Tool/internal/update"
@@ -33,6 +33,7 @@ type controller struct {
 	cfg     config.Config
 	cfgPath string
 	driver  platform.Driver
+	tr      i18n.Translator
 
 	status *widget.Label
 	diag   *widget.Label
@@ -60,18 +61,19 @@ func Run(ctx context.Context) error {
 		cfg:     cfg,
 		cfgPath: path,
 		driver:  platform.NewDriver(),
+		tr:      i18n.New(cfg.UI.Language),
 	}
 	ctrl.window = ctrl.buildWindow()
 	ctrl.setupTray()
 	ctrl.refreshDiagnostics()
 	if err := ctrl.registerHotkey(); err != nil {
-		ctrl.setStatus("Hotkey unavailable: " + err.Error())
+		ctrl.setStatus(ctrl.tr.T(i18n.StatusHotkeyUnavailable, err.Error()))
 		fyneApp.SendNotification(&fyne.Notification{
 			Title:   metadata.Name,
-			Content: "Hotkey unavailable: " + err.Error(),
+			Content: ctrl.tr.T(i18n.StatusHotkeyUnavailable, err.Error()),
 		})
 	} else {
-		ctrl.setStatus("Ready: " + ctrl.cfg.HotkeyString())
+		ctrl.setStatus(ctrl.tr.T(i18n.StatusReady, ctrl.cfg.HotkeyString()))
 	}
 
 	ctrl.window.Hide()
@@ -81,12 +83,18 @@ func Run(ctx context.Context) error {
 }
 
 func (c *controller) buildWindow() fyne.Window {
-	w := c.app.NewWindow(metadata.Name)
+	w := c.app.NewWindow(c.tr.T(i18n.AppTitle))
 	w.Resize(fyne.NewSize(520, 420))
 	w.SetCloseIntercept(func() { w.Hide() })
+	w.SetContent(c.buildContent(w))
+	return w
+}
 
+func (c *controller) buildContent(w fyne.Window) fyne.CanvasObject {
 	hotkeyEntry := widget.NewEntry()
 	hotkeyEntry.SetText(c.cfg.HotkeyString())
+	languageSelect := widget.NewSelect([]string{"auto", "zh-CN", "en"}, nil)
+	languageSelect.SetSelected(c.cfg.UI.Language)
 	startDelayEntry := widget.NewEntry()
 	startDelayEntry.SetText(strconv.Itoa(c.cfg.Paste.StartDelayMS))
 	interKeyEntry := widget.NewEntry()
@@ -101,16 +109,21 @@ func (c *controller) buildWindow() fyne.Window {
 	c.diag.Wrapping = fyne.TextWrapWord
 
 	form := widget.NewForm(
-		widget.NewFormItem("Hotkey", hotkeyEntry),
-		widget.NewFormItem("Start delay (ms)", startDelayEntry),
-		widget.NewFormItem("Inter-key delay (ms)", interKeyEntry),
-		widget.NewFormItem("Batch size", batchSizeEntry),
-		widget.NewFormItem("Batch pause (ms)", batchPauseEntry),
+		widget.NewFormItem(c.tr.T(i18n.LabelHotkey), hotkeyEntry),
+		widget.NewFormItem(c.tr.T(i18n.LabelLanguage), languageSelect),
+		widget.NewFormItem(c.tr.T(i18n.LabelStartDelay), startDelayEntry),
+		widget.NewFormItem(c.tr.T(i18n.LabelInterKeyDelay), interKeyEntry),
+		widget.NewFormItem(c.tr.T(i18n.LabelBatchSize), batchSizeEntry),
+		widget.NewFormItem(c.tr.T(i18n.LabelBatchPause), batchPauseEntry),
 	)
 
-	saveBtn := widget.NewButtonWithIcon("Save", theme.DocumentSaveIcon(), func() {
+	saveBtn := widget.NewButtonWithIcon(c.tr.T(i18n.ButtonSave), theme.DocumentSaveIcon(), func() {
 		next := c.cfg
 		if err := next.Set("hotkey", hotkeyEntry.Text); err != nil {
+			dialog.ShowError(err, w)
+			return
+		}
+		if err := next.Set("ui.language", languageSelect.Selected); err != nil {
 			dialog.ShowError(err, w)
 			return
 		}
@@ -130,30 +143,34 @@ func (c *controller) buildWindow() fyne.Window {
 			return
 		}
 		c.cfg = next
+		c.tr = i18n.New(c.cfg.UI.Language)
+		w.SetTitle(c.tr.T(i18n.AppTitle))
+		w.SetContent(c.buildContent(w))
+		c.setupTray()
+		c.refreshDiagnostics()
 		if err := c.registerHotkey(); err != nil {
-			c.setStatus("Saved, but hotkey registration failed: " + err.Error())
+			c.setStatus(c.tr.T(i18n.StatusSavedHotkeyRegisterFailed, err.Error()))
 			dialog.ShowError(err, w)
 			return
 		}
-		c.setStatus("Saved: " + c.cfg.HotkeyString())
+		c.setStatus(c.tr.T(i18n.StatusSaved, c.cfg.HotkeyString()))
 	})
 
 	buttons := container.NewHBox(
 		saveBtn,
-		widget.NewButtonWithIcon("Paste", theme.ContentPasteIcon(), c.startPasteFromClipboard),
-		widget.NewButtonWithIcon("Update", theme.ViewRefreshIcon(), func() { c.checkUpdate(w) }),
-		widget.NewButtonWithIcon("Repository", theme.HomeIcon(), c.openRepository),
+		widget.NewButtonWithIcon(c.tr.T(i18n.ButtonPaste), theme.ContentPasteIcon(), c.startPasteFromClipboard),
+		widget.NewButtonWithIcon(c.tr.T(i18n.ButtonUpdate), theme.ViewRefreshIcon(), func() { c.checkUpdate(w) }),
+		widget.NewButtonWithIcon(c.tr.T(i18n.ButtonRepository), theme.HomeIcon(), c.openRepository),
 	)
 
-	w.SetContent(container.NewVBox(
+	return container.NewVBox(
 		widget.NewLabelWithStyle(metadata.Name+" "+metadata.Version, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		form,
 		buttons,
 		widget.NewSeparator(),
 		c.status,
 		c.diag,
-	))
-	return w
+	)
 }
 
 func (c *controller) setupTray() {
@@ -162,19 +179,21 @@ func (c *controller) setupTray() {
 		c.window.Show()
 		return
 	}
-	menu := fyne.NewMenu(metadata.Name,
-		fyne.NewMenuItem("Settings", func() {
+	quit := fyne.NewMenuItem(c.tr.T(i18n.MenuQuit), c.app.Quit)
+	quit.IsQuit = true
+	menu := fyne.NewMenu(c.tr.T(i18n.AppTitle),
+		fyne.NewMenuItem(c.tr.T(i18n.MenuSettings), func() {
 			c.window.Show()
 			c.window.RequestFocus()
 		}),
-		fyne.NewMenuItem("Paste Now", c.startPasteFromClipboard),
+		fyne.NewMenuItem(c.tr.T(i18n.MenuPasteNow), c.startPasteFromClipboard),
 		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Check Update", func() { c.checkUpdate(c.window) }),
-		fyne.NewMenuItem("Download Portable", func() { c.downloadLatest("portable") }),
-		fyne.NewMenuItem("Download Installer", func() { c.downloadLatest("installer") }),
-		fyne.NewMenuItem("Repository", c.openRepository),
+		fyne.NewMenuItem(c.tr.T(i18n.MenuCheckUpdate), func() { c.checkUpdate(c.window) }),
+		fyne.NewMenuItem(c.tr.T(i18n.MenuDownloadPortable), func() { c.downloadLatest("portable") }),
+		fyne.NewMenuItem(c.tr.T(i18n.MenuDownloadInstaller), func() { c.downloadLatest("installer") }),
+		fyne.NewMenuItem(c.tr.T(i18n.MenuRepository), c.openRepository),
 		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Quit", c.app.Quit),
+		quit,
 	)
 	desk.SetSystemTrayMenu(menu)
 	desk.SetSystemTrayWindow(c.window)
@@ -237,18 +256,18 @@ func (c *controller) startPasteFromClipboard() {
 	text := c.app.Clipboard().Content()
 	if text == "" {
 		c.pasting.Store(false)
-		c.setStatus("Clipboard is empty")
+		c.setStatus(c.tr.T(i18n.StatusClipboardEmpty))
 		_ = c.driver.NotifyError()
 		return
 	}
 
 	c.unregisterHotkey()
-	c.setStatus("Pasting...")
+	c.setStatus(c.tr.T(i18n.StatusPasting))
 	go func() {
 		defer c.pasting.Store(false)
 		defer func() {
 			if err := c.registerHotkey(); err != nil {
-				c.setStatus("Paste finished; hotkey registration failed: " + err.Error())
+				c.setStatus(c.tr.T(i18n.StatusPasteFinishedHotkeyFailed, err.Error()))
 			}
 		}()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
@@ -260,78 +279,78 @@ func (c *controller) startPasteFromClipboard() {
 			BatchPause:    c.cfg.Paste.BatchPause(),
 		}, c.driver)
 		if err != nil {
-			c.setStatus("Paste failed: " + err.Error())
+			c.setStatus(c.tr.T(i18n.StatusPasteFailed, err.Error()))
 			return
 		}
-		c.setStatus("Paste finished")
+		c.setStatus(c.tr.T(i18n.StatusPasteFinished))
 	}()
 }
 
 func (c *controller) checkUpdate(parent fyne.Window) {
-	c.setStatus("Checking update...")
+	c.setStatus(c.tr.T(i18n.StatusCheckingUpdate))
 	go func() {
 		client := update.NewClient(c.cfg.Update.Repository)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		release, err := client.Latest(ctx)
 		if err != nil {
-			c.setStatus("Update check failed: " + err.Error())
+			c.setStatus(c.tr.T(i18n.StatusUpdateCheckFailed, err.Error()))
 			fyne.Do(func() { dialog.ShowError(err, parent) })
 			return
 		}
 		if update.HasUpdate(metadata.Version, release) {
-			msg := fmt.Sprintf("Update available: %s -> %s", metadata.Version, release.TagName)
+			msg := c.tr.T(i18n.StatusUpdateAvailable, metadata.Version, release.TagName)
 			c.setStatus(msg)
-			fyne.Do(func() { dialog.ShowInformation("Update", msg, parent) })
+			fyne.Do(func() { dialog.ShowInformation(c.tr.T(i18n.DialogUpdateTitle), msg, parent) })
 			return
 		}
-		msg := fmt.Sprintf("Current version %s is up to date", metadata.Version)
+		msg := c.tr.T(i18n.StatusCurrentVersionUpToDate, metadata.Version)
 		c.setStatus(msg)
-		fyne.Do(func() { dialog.ShowInformation("Update", msg, parent) })
+		fyne.Do(func() { dialog.ShowInformation(c.tr.T(i18n.DialogUpdateTitle), msg, parent) })
 	}()
 }
 
 func (c *controller) downloadLatest(kind string) {
-	c.setStatus("Downloading " + kind + "...")
+	c.setStatus(c.tr.T(i18n.StatusDownloading, kind))
 	go func() {
 		client := update.NewClient(c.cfg.Update.Repository)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		release, err := client.Latest(ctx)
 		if err != nil {
-			c.setStatus("Download failed: " + err.Error())
+			c.setStatus(c.tr.T(i18n.StatusDownloadFailed, err.Error()))
 			return
 		}
 		asset, err := update.SelectAsset(release, kind, runtime.GOOS, runtime.GOARCH)
 		if err != nil {
-			c.setStatus("Download failed: " + err.Error())
+			c.setStatus(c.tr.T(i18n.StatusDownloadFailed, err.Error()))
 			return
 		}
 		path, err := client.Download(ctx, asset, "")
 		if err != nil {
-			c.setStatus("Download failed: " + err.Error())
+			c.setStatus(c.tr.T(i18n.StatusDownloadFailed, err.Error()))
 			return
 		}
-		c.setStatus("Downloaded: " + path)
-		c.app.SendNotification(&fyne.Notification{Title: metadata.Name, Content: "Downloaded: " + path})
+		c.setStatus(c.tr.T(i18n.StatusDownloaded, path))
+		c.app.SendNotification(&fyne.Notification{Title: metadata.Name, Content: c.tr.T(i18n.StatusDownloaded, path)})
 	}()
 }
 
 func (c *controller) openRepository() {
 	u, err := url.Parse(metadata.Repository)
 	if err != nil {
-		c.setStatus("Invalid repository URL: " + err.Error())
+		c.setStatus(c.tr.T(i18n.StatusInvalidRepositoryURL, err.Error()))
 		return
 	}
 	if err := c.app.OpenURL(u); err != nil {
-		c.setStatus("Open repository failed: " + err.Error())
+		c.setStatus(c.tr.T(i18n.StatusOpenRepositoryFailed, err.Error()))
 	}
 }
 
 func (c *controller) refreshDiagnostics() {
-	lines := []string{"Config: " + c.cfgPath, "Driver: " + c.driver.Name()}
+	lines := []string{c.tr.T(i18n.DiagConfig) + ": " + c.cfgPath, c.tr.T(i18n.DiagDriver) + ": " + c.driver.Name()}
 	for _, check := range c.driver.Check(context.Background()) {
-		lines = append(lines, fmt.Sprintf("[%s] %s: %s", check.Status, check.Name, check.Detail))
+		lines = append(lines, "["+string(check.Status)+"] "+check.Name+": "+check.Detail)
 	}
 	if c.diag != nil {
 		c.diag.SetText(strings.Join(lines, "\n"))
