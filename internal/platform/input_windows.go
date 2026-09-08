@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"syscall"
+	"time"
 	"unicode/utf16"
 	"unsafe"
 )
@@ -19,11 +20,12 @@ const (
 )
 
 var (
-	user32          = syscall.NewLazyDLL("user32.dll")
-	kernel32        = syscall.NewLazyDLL("kernel32.dll")
-	procSendInput   = user32.NewProc("SendInput")
-	procMessageBeep = user32.NewProc("MessageBeep")
-	procBeep        = kernel32.NewProc("Beep")
+	user32               = syscall.NewLazyDLL("user32.dll")
+	kernel32             = syscall.NewLazyDLL("kernel32.dll")
+	procSendInput        = user32.NewProc("SendInput")
+	procMessageBeep      = user32.NewProc("MessageBeep")
+	procBeep             = kernel32.NewProc("Beep")
+	procGetAsyncKeyState = user32.NewProc("GetAsyncKeyState")
 )
 
 type keyboardInput struct {
@@ -37,6 +39,8 @@ type keyboardInput struct {
 type input struct {
 	Type uint32
 	Ki   keyboardInput
+	// INPUT contains a union sized for MOUSEINPUT, not just KEYBDINPUT.
+	_ [8]byte
 }
 
 type windowsDriver struct{}
@@ -53,21 +57,60 @@ func (windowsDriver) SendRune(ctx context.Context, r rune) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if r == '\n' {
-		return sendInputs([]input{
-			{Type: inputKeyboard, Ki: keyboardInput{WVk: vkReturn}},
-			{Type: inputKeyboard, Ki: keyboardInput{WVk: vkReturn, DwFlags: keyEventKeyUp}},
-		})
-	}
-	units := utf16.Encode([]rune{r})
-	for _, unit := range units {
-		if err := sendInputs([]input{
-			{Type: inputKeyboard, Ki: keyboardInput{WScan: unit, DwFlags: keyEventUnicode}},
-			{Type: inputKeyboard, Ki: keyboardInput{WScan: unit, DwFlags: keyEventUnicode | keyEventKeyUp}},
-		}); err != nil {
-			return err
+	return sendInputs(inputsForRune(r))
+}
+
+func inputsForRune(r rune) []input {
+	if r == '\n' || r == '\t' {
+		key := uint16(vkReturn)
+		if r == '\t' {
+			key = 0x09
+		}
+		return []input{
+			input{Type: inputKeyboard, Ki: keyboardInput{WVk: key}},
+			input{Type: inputKeyboard, Ki: keyboardInput{WVk: key, DwFlags: keyEventKeyUp}},
 		}
 	}
+	units := utf16.Encode([]rune{r})
+	events := make([]input, 0, 2*len(units))
+	for _, unit := range units {
+		events = append(events,
+			input{Type: inputKeyboard, Ki: keyboardInput{WScan: unit, DwFlags: keyEventUnicode}},
+			input{Type: inputKeyboard, Ki: keyboardInput{WScan: unit, DwFlags: keyEventUnicode | keyEventKeyUp}},
+		)
+	}
+	return events
+}
+
+func (windowsDriver) Prepare(ctx context.Context) error {
+	// Wait for the invoking shortcut to be released; never release the user's keys.
+	deadline := time.NewTimer(2 * time.Second)
+	defer deadline.Stop()
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		held := false
+		for _, key := range []uintptr{0x10, 0x11, 0x12, 0x5b, 0x5c} {
+			state, _, _ := procGetAsyncKeyState.Call(key)
+			held = held || state&0x8000 != 0
+		}
+		if !held {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline.C:
+			return fmt.Errorf("release Ctrl, Alt, Shift and Windows keys before pasting")
+		case <-tick.C:
+		}
+	}
+}
+
+func (windowsDriver) Close() error {
 	return nil
 }
 

@@ -10,6 +10,9 @@ import (
 type linuxNoCGODriver struct{}
 
 func NewDriver() Driver {
+	if IsWayland() {
+		return &waylandDriver{}
+	}
 	return linuxNoCGODriver{}
 }
 

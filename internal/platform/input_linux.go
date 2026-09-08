@@ -77,6 +77,9 @@ const (
 type linuxDriver struct{}
 
 func NewDriver() Driver {
+	if IsWayland() {
+		return &waylandDriver{}
+	}
 	return linuxDriver{}
 }
 
@@ -132,21 +135,4 @@ func checkLinuxInputEnvironment() error {
 		return fmt.Errorf("%w: DISPLAY is not set", ErrUnsupported)
 	}
 	return nil
-}
-
-func keysymForRune(r rune) uint64 {
-	switch r {
-	case '\b':
-		return xkBackSpace
-	case '\t':
-		return xkTab
-	case '\n':
-		return xkReturn
-	case 0x1b:
-		return xkEscape
-	}
-	if r >= 0x20 && r <= 0xff {
-		return uint64(r)
-	}
-	return 0x01000000 | uint64(r)
 }

@@ -26,6 +26,12 @@ type Typer interface {
 	NotifyError() error
 }
 
+// SessionTyper acquires permissions/resources before the target-focus countdown.
+type SessionTyper interface {
+	Prepare(context.Context) error
+	Close() error
+}
+
 type Sleeper interface {
 	Sleep(context.Context, time.Duration) error
 }
@@ -50,7 +56,7 @@ func PasteText(ctx context.Context, text string, options Options, typer Typer) e
 	return PasteTextWithSleeper(ctx, text, options, typer, RealSleeper{})
 }
 
-func PasteTextWithSleeper(ctx context.Context, text string, options Options, typer Typer, sleeper Sleeper) error {
+func PasteTextWithSleeper(ctx context.Context, text string, options Options, typer Typer, sleeper Sleeper) (result error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -61,6 +67,15 @@ func PasteTextWithSleeper(ctx context.Context, text string, options Options, typ
 	if len(runes) == 0 {
 		_ = typer.NotifyError()
 		return ErrEmptyText
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if session, ok := typer.(SessionTyper); ok {
+		defer func() { result = errors.Join(result, session.Close()) }()
+		if err := session.Prepare(ctx); err != nil {
+			return fmt.Errorf("prepare input: %w", err)
+		}
 	}
 	if err := typer.NotifyStart(); err != nil {
 		return fmt.Errorf("notify paste start: %w", err)
