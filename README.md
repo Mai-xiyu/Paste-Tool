@@ -9,7 +9,7 @@ Paste Tool 是一个 Go 实现的跨平台托盘粘贴工具。它通过模拟�
 ## 功能
 
 - 跨平台核心：Windows、macOS、Linux X11。
-- 明确边界：Linux Wayland 无 X11 `DISPLAY` 时返回 unsupported，不伪装成可用。
+- Linux GNOME：X11 使用 XTest；Wayland 使用 GNOME 的 XDG RemoteDesktop Portal 请求键盘授权。
 - CLI：`paste`、`doctor`、`config`、`update`、`version`。
 - GUI：Fyne 托盘常驻和设置窗口。
 - 默认热键：`Ctrl+Alt+V`。
@@ -20,7 +20,15 @@ Paste Tool 是一个 Go 实现的跨平台托盘粘贴工具。它通过模拟�
 
 - Windows：使用 `SendInput`。如果目标窗口权限级别高于 Paste Tool，Windows UIPI 可能阻止输入。
 - macOS：使用 CoreGraphics 事件注入，需要 Accessibility/Input Monitoring 权限。
-- Linux：X11 使用 XTest；Wayland 默认不允许通用全局输入注入，本项目只给出明确错误提示。
+- Linux X11：需要 `DISPLAY` 和 XTest。Ubuntu GNOME 登录界面选择“Ubuntu on Xorg”即可使用全局热键和 XTest 输入。
+- Linux Wayland：粘贴时由桌面显示 RemoteDesktop 键盘授权提示；授权后才开始倒计时输入。Wayland 不允许应用直接注册 X11 全局热键，建议在 GNOME 设置中建立自定义快捷键，执行 `paste_tool paste --source clipboard`。
+- Ubuntu GNOME 依赖：
+
+```bash
+sudo apt-get install xdg-desktop-portal xdg-desktop-portal-gnome libxtst6
+```
+
+`paste-tool doctor` 会区分 X11、Wayland、缺少 Portal 和缺少键盘授权等状态。
 
 ## 使用
 
